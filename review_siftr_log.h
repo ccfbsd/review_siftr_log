@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -619,29 +620,29 @@ get_last_line_stats(file_basic_stats_t *f_basics)
     }
 
     if (verbose) {
-        printf("disable_time: %ld.%ld, num_inbound_tcp_pkts: %llu, "
-                        "num_outbound_tcp_pkts: %llu, total_tcp_pkts: %llu, "
-                        "num_inbound_skipped_pkts_malloc: %u, "
-                        "num_outbound_skipped_pkts_malloc: %u, "
-                        "num_inbound_skipped_pkts_tcpcb: %u, "
-                        "num_outbound_skipped_pkts_tcpcb: %u, "
-                        "num_inbound_skipped_pkts_inpcb: %u, "
-                        "num_outbound_skipped_pkts_inpcb: %u, "
-                        "total_skipped_tcp_pkts: %u, "
-                        "flowid_list: %s\n\n",
-                        (long)l_line_stats->disable_time.tv_sec,
-                        (long)l_line_stats->disable_time.tv_usec,
-                        l_line_stats->num_inbound_tcp_pkts,
-                        l_line_stats->num_outbound_tcp_pkts,
-                        l_line_stats->total_tcp_pkts,
-                        l_line_stats->num_inbound_skipped_pkts_malloc,
-                        l_line_stats->num_outbound_skipped_pkts_malloc,
-                        l_line_stats->num_inbound_skipped_pkts_tcpcb,
-                        l_line_stats->num_outbound_skipped_pkts_tcpcb,
-                        l_line_stats->num_inbound_skipped_pkts_inpcb,
-                        l_line_stats->num_outbound_skipped_pkts_inpcb,
-                        l_line_stats->total_skipped_tcp_pkts,
-                        l_line_stats->flowid_list);
+        printf("disable_time: %ld.%ld, num_inbound_tcp_pkts: %" PRIu64
+               ", num_outbound_tcp_pkts: %" PRIu64 ", total_tcp_pkts: %" PRIu64
+               ", num_inbound_skipped_pkts_malloc: %u, "
+               "num_outbound_skipped_pkts_malloc: %u, "
+               "num_inbound_skipped_pkts_tcpcb: %u, "
+               "num_outbound_skipped_pkts_tcpcb: %u, "
+               "num_inbound_skipped_pkts_inpcb: %u, "
+               "num_outbound_skipped_pkts_inpcb: %u, "
+               "total_skipped_tcp_pkts: %u, "
+               "flowid_list: %s\n\n",
+               (long)l_line_stats->disable_time.tv_sec,
+               (long)l_line_stats->disable_time.tv_usec,
+               l_line_stats->num_inbound_tcp_pkts,
+               l_line_stats->num_outbound_tcp_pkts,
+               l_line_stats->total_tcp_pkts,
+               l_line_stats->num_inbound_skipped_pkts_malloc,
+               l_line_stats->num_outbound_skipped_pkts_malloc,
+               l_line_stats->num_inbound_skipped_pkts_tcpcb,
+               l_line_stats->num_outbound_skipped_pkts_tcpcb,
+               l_line_stats->num_inbound_skipped_pkts_inpcb,
+               l_line_stats->num_outbound_skipped_pkts_inpcb,
+               l_line_stats->total_skipped_tcp_pkts,
+               l_line_stats->flowid_list);
     }
 
     f_basics->last_line_stats = l_line_stats;
