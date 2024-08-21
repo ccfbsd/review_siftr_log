@@ -1,13 +1,4 @@
 /*
- * review_siftr_log.h
- *
- *  Created on: Aug 21, 2024
- *      Author: cc
- */
-
-#ifndef REVIEW_SIFTR_LOG_H_
-#define REVIEW_SIFTR_LOG_H_
-/*
  ============================================================================
  Name        : review_siftr_log.h
  Author      : Cheng Cui
@@ -16,6 +7,10 @@
  Description : Check siftr log stats in C, Ansi-style
  ============================================================================
  */
+
+#ifndef REVIEW_SIFTR_LOG_H_
+#define REVIEW_SIFTR_LOG_H_
+
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
