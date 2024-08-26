@@ -15,23 +15,24 @@ bool verbose = false;
 void
 stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
 {
-    char line[MAX_LINE_LENGTH];
-    char cwnd_plot_file_name[MAX_NAME_LENGTH];
+    uint32_t lineCount = 0;
+    char current_line[MAX_LINE_LENGTH];
+    char previous_line[MAX_LINE_LENGTH] = {0};
+
     double first_flow_start_time = 0;
     double relative_time_stamp = 0;
-    uint32_t current_line;
+
+    char cwnd_plot_file_name[MAX_NAME_LENGTH];
 
     /* Restart seeking and go back to the beginning of the file */
     fseek(f_basics->file, 0, SEEK_SET);
 
-    current_line = 1; // Line counter (start from 1 for 1-based index)
-
     /* Read and discard the first line */
-    if(fgets(line, MAX_LINE_LENGTH, f_basics->file) == NULL) {
+    if(fgets(current_line, MAX_LINE_LENGTH, f_basics->file) == NULL) {
         PERROR_FUNCTION("Failed to read first line");
         return;
     }
-    current_line++; // Increment line counter, now shall be at the 2nd line
+    lineCount++; // Increment line counter, now shall be at the 2nd line
 
     // Combine the strings into the cwnd_plot_file buffer
     snprintf(cwnd_plot_file_name, MAX_NAME_LENGTH, "cwnd_%u.txt", flowid);
@@ -46,49 +47,58 @@ stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
     fprintf(cwnd_file, "##DIRECTION" TAB "relative_timestamp" TAB "CWND" TAB
             "SSTHRESH\n");
 
-    while ((fgets(line, MAX_LINE_LENGTH, f_basics->file) != NULL) &&
-           (current_line != f_basics->num_lines)) {
-        char *fields[TOTAL_FIELDS];
+    while (fgets(current_line, MAX_LINE_LENGTH, f_basics->file) != NULL) {
+        if (previous_line[0] != '\0') {
+            char *fields[TOTAL_FIELDS];
 
-        fill_fields_from_line(fields, line);
+            fill_fields_from_line(fields, previous_line, BODY);
 
-        if (first_flow_start_time == 0) {
-            first_flow_start_time = atof(fields[TIMESTAMP]);
-            relative_time_stamp = 0;
-        } else {
-            relative_time_stamp = atof(fields[TIMESTAMP]) - first_flow_start_time;
+            if (first_flow_start_time == 0) {
+                first_flow_start_time = atof(fields[TIMESTAMP]);
+                relative_time_stamp = 0;
+            } else {
+                relative_time_stamp = atof(fields[TIMESTAMP]) - first_flow_start_time;
+            }
+
+            if (my_atol(fields[FLOW_ID]) == flowid) {
+                char t_flags_arr[TF_ARRAY_MAX_LENGTH] = {0};
+                char t_flags2_arr[TF2_ARRAY_MAX_LENGTH] = {0};
+                uint32_t t_flags = my_atol(fields[FLAG]);
+                uint32_t t_flags2 = my_atol(fields[FLAG2]);
+
+                translate_tflags(t_flags, t_flags_arr, sizeof(t_flags_arr));
+                translate_tflags2(t_flags2, t_flags2_arr, sizeof(t_flags2_arr));
+
+                fprintf(cwnd_file, "%s" TAB "%.6f" TAB "%s" TAB "%s\n",
+                        fields[DIRECTION], relative_time_stamp, fields[CWND],
+                        fields[SSTHRESH]);
+            }
         }
 
-        if (my_atol(fields[FLOW_ID]) == flowid) {
-            char t_flags_arr[TF_ARRAY_MAX_LENGTH] = {0};
-            char t_flags2_arr[TF2_ARRAY_MAX_LENGTH] = {0};
-            uint32_t t_flags = my_atol(fields[FLAG]);
-            uint32_t t_flags2 = my_atol(fields[FLAG2]);
-
-            translate_tflags(t_flags, t_flags_arr, sizeof(t_flags_arr));
-            translate_tflags2(t_flags2, t_flags2_arr, sizeof(t_flags2_arr));
-
-            fprintf(cwnd_file, "%s" TAB "%.6f" TAB "%s" TAB "%s\n",
-                    fields[DIRECTION], relative_time_stamp, fields[CWND],
-                    fields[SSTHRESH]);
-        }
-        current_line++; // Increment line counter
+        lineCount++;
+        /* Update the previous line to be the current line. */
+        strcpy(previous_line, current_line);
     }
 
     if (fclose(cwnd_file) == EOF) {
         PERROR_FUNCTION("Failed to close cwnd_file");
+    }
+
+    f_basics->num_lines = lineCount;
+
+    if (verbose) {
+        printf("input file has total lines: %u\n", lineCount);
     }
 }
 
 int main(int argc, char *argv[]) {
     /* Record the start time */
     struct timeval start, end;
-
     gettimeofday(&start, NULL);
 
     file_basic_stats_t f_basics = {0};
 
-    int opt, idx;
+    int opt;
     int option_index = 0;
     bool option_match = false, f_opt_match = false;
     struct option long_options[] = {
@@ -132,12 +142,7 @@ int main(int argc, char *argv[]) {
                 } else {
                     printf("\n");
                 }
-                uint32_t flowid = (uint32_t)my_atol(optarg);
-                if (is_flowid_in_file(&f_basics, flowid, &idx)) {
-                    read_body_by_flowid(&f_basics, flowid);
-                } else {
-                    printf("flow ID %u not found\n", flowid);
-                }
+                read_body_by_flowid(&f_basics, my_atol(optarg));
                 break;
             default:
                 printf("Usage: %s [-v | h] [-f file_name] [-s flow_id]\n", argv[0]);
