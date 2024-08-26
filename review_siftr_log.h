@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 enum {
-    INP_IPV4 = 0x1, INP_IPV6 = 0x2,
+    INP_IPV4 = 0x1,		// siftr2 is IPv4 only
     MAX_LINE_LENGTH = 1000,
     MAX_NAME_LENGTH = 100,
     INET6_ADDRSTRLEN = 46,
@@ -36,6 +36,7 @@ enum {
 #define TAB_DELIMITER       "\t"
 #define TAB         TAB_DELIMITER
 #define EQUAL_DELIMITER     "="
+#define SEMICOLON_DELIMITER     ";"
 
 #define PERROR_FUNCTION(msg) \
         do {                                                                \
@@ -47,6 +48,11 @@ enum {
 #define GET_VALUE(field) \
         my_atol(next_sub_str_from(field, EQUAL_DELIMITER));
 
+enum line_type {
+    HEAD,
+    BODY,
+    FOOT,
+};
 enum {
     ENABLE_TIME_SECS,
     ENABLE_TIME_USECS,
@@ -54,7 +60,6 @@ enum {
     SYSNAME,
     SYSVER,
     IPMODE,
-    HZ,
     TOTAL_FIRST_LINE_FIELDS,
 };
 
@@ -69,52 +74,54 @@ typedef struct {
 enum {
     DISABLE_TIME_SECS,
     DISABLE_TIME_USECS,
-    NUM_INBOUND_TCP_PKTS,
-    NUM_OUTBOUND_TCP_PKTS,
-    TOTAL_TCP_PKTS,
-    NUM_INBOUND_SKIPPED_PKTS_MALLOC,
-    NUM_OUTBOUND_SKIPPED_PKTS_MALLOC,
-    NUM_INBOUND_SKIPPED_PKTS_TCPCB,
-    NUM_OUTBOUND_SKIPPED_PKTS_TCPCB,
-    NUM_INBOUND_SKIPPED_PKTS_INPCB,
-    NUM_OUTBOUND_SKIPPED_PKTS_INPCB,
-    TOTAL_SKIPPED_TCP_PKTS,
-    FLOWID_LIST,
+    GLOBAL_FLOW_CNT,
+    MAX_TMP_QSIZE,
+    AVG_TMP_QSIZE,
+    MAX_STR_SIZE,
+    ALQ_GETN_FAIL_CNT,
+    FLOW_LIST,
     TOTAL_LAST_LINE_FIELDS,
 };
 
 typedef struct {
     struct timeval disable_time;
-    uint64_t    num_inbound_tcp_pkts;
-    uint64_t    num_outbound_tcp_pkts;
-    uint64_t    total_tcp_pkts;
-    uint32_t    num_inbound_skipped_pkts_malloc;
-    uint32_t    num_outbound_skipped_pkts_malloc;
-    uint32_t    num_inbound_skipped_pkts_tcpcb;
-    uint32_t    num_outbound_skipped_pkts_tcpcb;
-    uint32_t    num_inbound_skipped_pkts_inpcb;
-    uint32_t    num_outbound_skipped_pkts_inpcb;
-    uint32_t    total_skipped_tcp_pkts;
-    char        *flowid_list;
+    uint32_t    global_flow_cnt;
+    uint32_t    max_tmp_qsize;
+    uint32_t    avg_tmp_qsize;
+    uint32_t    max_str_size;
+    uint32_t    alq_getn_fail_cnt;
+    char        *flow_list_str;
 } last_line_fields_t;
 
+/* flow list fields in the foot note of the siftr2 log */
 enum {
-    DIRECTION,  TIMESTAMP,  LOIP,   LPORT,  FOIP,   FPORT,
-    SSTHRESH,   CWND,       FLAG2,  SNDWIN, RCVWIN, SNDSCALE,
-    RCVSCALE,   STATE,      MSS,    SRTT,   ISSACK, FLAG,   RTO,
-    SND_BUF_HIWAT,          SND_BUF_CC,     RCV_BUF_HIWAT,  RCV_BUF_CC,
-    INFLIGHT_BYTES,         REASS_QLEN,     FLOW_ID,        FLOW_TYPE,
+    FL_FLOW_ID,     FL_LOIP,        FL_LPORT,       FL_FOIP,    FL_FPORT,
+    FL_MSS,         FL_ISSACK,      FL_SNDSCALE,    FL_RCVSCALE,
+    FL_NUMRECORD,   TOTAL_FLOWLIST_FIELDS,
+};
+
+/* TCP traffic record fields */
+enum {
+    DIRECTION,      TIMESTAMP,      FLOW_ID,    CWND,   SSTHRESH,
+    SNDWIN,         RCVWIN,         FLAG,       FLAG2,  STATE,
+    SRTT,           RTO,            SND_BUF_HIWAT,      SND_BUF_CC,
+    RCV_BUF_HIWAT,  RCV_BUF_CC,     INFLIGHT_BYTES,     REASS_QLEN,
+    TH_SEQ,         TH_ACK,         TCP_DATA_SZ,
     TOTAL_FIELDS,
 };
 
 typedef struct
 {
+    uint32_t    flowid;                     /* flowid of the connection */
     char        laddr[INET6_ADDRSTRLEN];    /* local IP address */
     char        faddr[INET6_ADDRSTRLEN];    /* foreign IP address */
-    uint16_t    lport;                  /* local TCP port */
-    uint16_t    fport;                  /* foreign TCP port */
-    uint8_t     ipver;                  /* IP version */
-    uint32_t    flowid;                 /* flowid of the connection */
+    uint16_t    lport;                      /* local TCP port */
+    uint16_t    fport;                      /* foreign TCP port */
+    uint8_t     ipver;                      /* IP version */
+    uint32_t    mss;
+    bool        isSACK;
+    uint8_t     snd_scale;                  /* Window scaling for snd window. */
+    uint8_t     rcv_scale;                  /* Window scaling for recv window. */
     uint32_t    record_cnt;
     bool        is_info_set;
 } flow_info_t;
@@ -388,10 +395,18 @@ void
 fill_flow_info(flow_info_t *target_flow, char *fields[])
 {
     if (target_flow != NULL) {
-        strcpy(target_flow->laddr, fields[LOIP]);
-        target_flow->lport = (uint16_t)my_atol(fields[LPORT]);
-        strcpy(target_flow->faddr, fields[FOIP]);
-        target_flow->fport = (uint16_t)my_atol(fields[FPORT]);
+        target_flow->flowid = (uint32_t)my_atol(fields[FL_FLOW_ID]);
+        strcpy(target_flow->laddr, fields[FL_LOIP]);
+        target_flow->lport = (uint16_t)my_atol(fields[FL_LPORT]);
+        strcpy(target_flow->faddr, fields[FL_FOIP]);
+        target_flow->fport = (uint16_t)my_atol(fields[FL_FPORT]);
+        target_flow->ipver = INP_IPV4;
+        target_flow->mss = (uint32_t)my_atol(fields[FL_MSS]);
+        target_flow->isSACK = (bool)my_atol(fields[FL_ISSACK]);
+        target_flow->snd_scale = (uint8_t)my_atol(fields[FL_SNDSCALE]);
+        target_flow->rcv_scale = (uint8_t)my_atol(fields[FL_RCVSCALE]);
+        target_flow->record_cnt = (uint32_t)my_atol(fields[FL_NUMRECORD]);
+
         target_flow->is_info_set = true;
     }
 }
@@ -466,7 +481,7 @@ read_last_line(FILE *file, char *lastLine)
 }
 
 void
-fill_fields_from_line(char **fields, char *line)
+fill_fields_from_line(char **fields, char *line, enum line_type type)
 {
     int field_cnt = 0;
 
@@ -479,9 +494,14 @@ fill_fields_from_line(char **fields, char *line)
         fields[field_cnt++] = token;
         token = strtok(NULL, COMMA_DELIMITER);
     }
-    if (field_cnt != TOTAL_FIELDS){
+
+    if (type == BODY && field_cnt != TOTAL_FIELDS){
         printf("\nfield_cnt:%d != TOTAL_FIELDS:%d\n", field_cnt, TOTAL_FIELDS);
         PERROR_FUNCTION("field_cnt != TOTAL_FIELDS");
+    } else if (type == FOOT && field_cnt != TOTAL_FLOWLIST_FIELDS) {
+        printf("\nfield_cnt:%d != TOTAL_FLOWLIST_FIELDS:%d\n",
+               field_cnt, TOTAL_FLOWLIST_FIELDS);
+        PERROR_FUNCTION("field_cnt != TOTAL_FLOWLIST_FIELDS");
     }
 }
 
@@ -592,25 +612,19 @@ get_last_line_stats(file_basic_stats_t *f_basics)
 
         l_line_stats->disable_time.tv_sec = GET_VALUE(fields[DISABLE_TIME_SECS]);
         l_line_stats->disable_time.tv_usec = GET_VALUE(fields[DISABLE_TIME_USECS]);
-        l_line_stats->num_inbound_tcp_pkts = GET_VALUE(fields[NUM_INBOUND_TCP_PKTS]);
-        l_line_stats->num_outbound_tcp_pkts = GET_VALUE(fields[NUM_OUTBOUND_TCP_PKTS]);
-        l_line_stats->total_tcp_pkts = GET_VALUE(fields[TOTAL_TCP_PKTS]);
 
-        l_line_stats->num_inbound_skipped_pkts_malloc = GET_VALUE(fields[NUM_INBOUND_SKIPPED_PKTS_MALLOC]);
-        l_line_stats->num_outbound_skipped_pkts_malloc = GET_VALUE(fields[NUM_OUTBOUND_SKIPPED_PKTS_MALLOC]);
-        l_line_stats->num_inbound_skipped_pkts_tcpcb = GET_VALUE(fields[NUM_INBOUND_SKIPPED_PKTS_TCPCB]);
-        l_line_stats->num_outbound_skipped_pkts_tcpcb = GET_VALUE(fields[NUM_OUTBOUND_SKIPPED_PKTS_TCPCB]);
-        l_line_stats->num_inbound_skipped_pkts_inpcb = GET_VALUE(fields[NUM_INBOUND_SKIPPED_PKTS_INPCB]);
-        l_line_stats->num_outbound_skipped_pkts_inpcb = GET_VALUE(fields[NUM_OUTBOUND_SKIPPED_PKTS_INPCB]);
-        l_line_stats->total_skipped_tcp_pkts = GET_VALUE(fields[TOTAL_SKIPPED_TCP_PKTS]);
+        l_line_stats->global_flow_cnt = GET_VALUE(fields[GLOBAL_FLOW_CNT]);
+        l_line_stats->max_tmp_qsize = GET_VALUE(fields[MAX_TMP_QSIZE]);
+        l_line_stats->avg_tmp_qsize = GET_VALUE(fields[AVG_TMP_QSIZE]);
+        l_line_stats->max_str_size = GET_VALUE(fields[MAX_STR_SIZE]);
+        l_line_stats->alq_getn_fail_cnt = GET_VALUE(fields[ALQ_GETN_FAIL_CNT]);
 
-        char *sub_str = next_sub_str_from(fields[FLOWID_LIST], EQUAL_DELIMITER);
+        char *sub_str = next_sub_str_from(fields[FLOW_LIST], EQUAL_DELIMITER);
 
-        l_line_stats->flowid_list = (char*)calloc(strlen(sub_str) + 1, sizeof(char));
-        if (l_line_stats->flowid_list == NULL) {
-            PERROR_FUNCTION("Failed to calloc the last line.");
+        l_line_stats->flow_list_str = strdup(sub_str);
+        if (l_line_stats->flow_list_str == NULL) {
+            PERROR_FUNCTION("Failed to strdup the last line.");
         }
-        strcpy(l_line_stats->flowid_list, sub_str);
 
         free(lastLine);
     } else {
@@ -620,125 +634,78 @@ get_last_line_stats(file_basic_stats_t *f_basics)
     }
 
     if (verbose) {
-        printf("disable_time: %ld.%ld, num_inbound_tcp_pkts: %" PRIu64
-               ", num_outbound_tcp_pkts: %" PRIu64 ", total_tcp_pkts: %" PRIu64
-               ", num_inbound_skipped_pkts_malloc: %u, "
-               "num_outbound_skipped_pkts_malloc: %u, "
-               "num_inbound_skipped_pkts_tcpcb: %u, "
-               "num_outbound_skipped_pkts_tcpcb: %u, "
-               "num_inbound_skipped_pkts_inpcb: %u, "
-               "num_outbound_skipped_pkts_inpcb: %u, "
-               "total_skipped_tcp_pkts: %u, "
-               "flowid_list: %s\n\n",
+        printf("disable_time: %ld.%ld, global_flow_cnt: %u, max_tmp_qsize: %u, "
+               "avg_tmp_qsize: %u, max_str_size: %u, alq_getn_fail_cnt: %u, "
+               "flow_list: %s\n\n",
                (long)l_line_stats->disable_time.tv_sec,
                (long)l_line_stats->disable_time.tv_usec,
-               l_line_stats->num_inbound_tcp_pkts,
-               l_line_stats->num_outbound_tcp_pkts,
-               l_line_stats->total_tcp_pkts,
-               l_line_stats->num_inbound_skipped_pkts_malloc,
-               l_line_stats->num_outbound_skipped_pkts_malloc,
-               l_line_stats->num_inbound_skipped_pkts_tcpcb,
-               l_line_stats->num_outbound_skipped_pkts_tcpcb,
-               l_line_stats->num_inbound_skipped_pkts_inpcb,
-               l_line_stats->num_outbound_skipped_pkts_inpcb,
-               l_line_stats->total_skipped_tcp_pkts,
-               l_line_stats->flowid_list);
+               l_line_stats->global_flow_cnt,
+               l_line_stats->max_tmp_qsize,
+               l_line_stats->avg_tmp_qsize,
+               l_line_stats->max_str_size,
+               l_line_stats->alq_getn_fail_cnt,
+               l_line_stats->flow_list_str);
     }
 
     f_basics->last_line_stats = l_line_stats;
 }
 
-static inline void
-get_flow_count(file_basic_stats_t *f_basics)
+static void
+print_flow_info(flow_info_t *flow_info)
 {
-    uint32_t flow_cnt = 0;
+    printf(" flowid:%10u (%s:%hu<->%s:%hu) mss:%u SACK:%d snd_scal:%hhu "
+           "rcv_scale:%hhu records:%u\n",
+           flow_info->flowid,
+           flow_info->laddr, flow_info->lport,
+           flow_info->faddr, flow_info->fport,
+           flow_info->mss,flow_info->isSACK,
+           flow_info->snd_scale,flow_info->rcv_scale,
+           flow_info->record_cnt);
+}
 
-    char *flow_list_str = strdup(f_basics->last_line_stats->flowid_list);
+static inline void
+get_flow_count_and_info(file_basic_stats_t *f_basics)
+{
+    uint32_t flow_cnt = f_basics->last_line_stats->global_flow_cnt;
+    char **flow_list_arr;
+
+    char *flow_list_str = strdup(f_basics->last_line_stats->flow_list_str);
     if (flow_list_str == NULL) {
         PERROR_FUNCTION("strdup() failed for flow_list_str");
         return;
     }
-
-    /* get the total number of flows */
-    char *token = strtok(flow_list_str, COMMA_DELIMITER);
-    while (token != NULL) {
-        token = strtok(NULL, COMMA_DELIMITER);
-        flow_cnt++;
+    if (flow_cnt == 0) {
+        printf("%s%u: no flow in flow list of the foot note:%u\n",
+               __FUNCTION__, __LINE__, flow_cnt);
+        PERROR_FUNCTION("flow list not set");
+        return;
     }
     f_basics->flow_count = flow_cnt;
+    f_basics->flow_list = (flow_info_t*)calloc(flow_cnt, sizeof(flow_info_t));
+    flow_list_arr = (char **)malloc(flow_cnt * sizeof(char **));
 
+    flow_cnt = 0;
+    /* get the total number of flows */
+    char *token = strtok(flow_list_str, SEMICOLON_DELIMITER);
+    while (token != NULL) {
+        flow_list_arr[flow_cnt] = token;
+        flow_cnt++;
+        token = strtok(NULL, SEMICOLON_DELIMITER);
+    }
+
+    assert(flow_cnt == f_basics->last_line_stats->global_flow_cnt);
+
+    for (int i = 0; i < flow_cnt; i++) {
+        char *fields[TOTAL_FLOWLIST_FIELDS];///xxx
+        flow_info_t target_flow;
+
+        fill_fields_from_line(fields, flow_list_arr[i], FOOT);
+        fill_flow_info(&target_flow, fields);
+        f_basics->flow_list[i] = target_flow;
+    }
+
+    free(flow_list_arr);
     free(flow_list_str);
-}
-
-/* get some basic info from the traffic records, exclude head or foot note */
-static inline void
-get_body_stats(file_basic_stats_t *f_basics) {
-    uint32_t lineCount = 0;
-    char current_line[MAX_LINE_LENGTH];
-    char previous_line[MAX_LINE_LENGTH] = {0};
-    FILE *file = f_basics->file;
-
-    if (f_basics->flow_count > 0) {
-        f_basics->flow_list = (flow_info_t*)calloc(f_basics->flow_count,
-                                                   sizeof(flow_info_t));
-    } else {
-        printf("%s%u: has not set f_basics->flow_count:%u\n",
-               __FUNCTION__, __LINE__, f_basics->flow_count);
-        PERROR_FUNCTION("f_basics->flow_count not set");
-        return;
-    }
-
-    /* Restart seeking and go back to the beginning of the file */
-    fseek(file, 0, SEEK_SET);
-
-    // Read and discard the first line
-    if(fgets(current_line, MAX_LINE_LENGTH, file) == NULL) {
-        PERROR_FUNCTION("Failed to read first line");
-        return;
-    }
-    lineCount++;
-
-    /* Read through the rest of the file line by line */
-    while (fgets(current_line, MAX_LINE_LENGTH, file) != NULL) {
-        if (previous_line[0] != '\0') {
-            char *fields[TOTAL_FIELDS];
-            uint32_t flowid;
-            int idx;
-
-            fill_fields_from_line(fields, previous_line);
-            flowid = my_atol(fields[FLOW_ID]);
-
-            if (!is_flowid_in_file(f_basics, flowid, &idx)) {
-                flow_info_t target_flow = { .flowid = flowid };
-
-                for (int i = 0; i < f_basics->flow_count; i++) {
-                    if (f_basics->flow_list[i].flowid == 0) {
-                        fill_flow_info(&target_flow, fields);
-                        target_flow.record_cnt = 1;
-                        if (strcmp(f_basics->first_line_stats->ipmode, "4") == 0) {
-                            target_flow.ipver = INP_IPV4;
-                        } else {
-                            target_flow.ipver = INP_IPV6;
-                        }
-                        f_basics->flow_list[i] = target_flow;
-                        break;
-                    }
-                }
-            } else {
-                f_basics->flow_list[idx].record_cnt++;
-            }
-        }
-
-        lineCount++;
-        /* Update the previous line to be the current line. */
-        strcpy(previous_line, current_line);
-    }
-
-    if (verbose) {
-        printf("input file has total lines: %u\n", lineCount);
-    }
-
-    f_basics->num_lines = lineCount;
 }
 
 int
@@ -763,9 +730,7 @@ get_file_basics(file_basic_stats_t *f_basics, const char *file_name)
         return EXIT_FAILURE;
     }
 
-    get_flow_count(f_basics);
-    /* f_basics->flow_count must be set first */
-    get_body_stats(f_basics);
+    get_flow_count_and_info(f_basics);
 
     return EXIT_SUCCESS;
 }
@@ -784,16 +749,12 @@ show_file_basic_stats(const file_basic_stats_t *f_basics)
     printf("siftr version: %s\n", f_basics->first_line_stats->siftrver);
 
     if (verbose) {
-        printf("flow list: %s\n", f_basics->last_line_stats->flowid_list);
+        printf("flow list: %s\n", f_basics->last_line_stats->flow_list_str);
     }
 
     printf("flow id list:\n");
     for (int i = 0; i < f_basics->flow_count; i++) {
-        printf(" flowid:%10u (%s:%hu<->%s:%hu) records:%u\n",
-                f_basics->flow_list[i].flowid,
-                f_basics->flow_list[i].laddr, f_basics->flow_list[i].lport,
-                f_basics->flow_list[i].faddr, f_basics->flow_list[i].fport,
-                f_basics->flow_list[i].record_cnt);
+        print_flow_info(&f_basics->flow_list[i]);
     }
     printf("\n");
 
@@ -823,6 +784,8 @@ read_body_by_flowid(file_basic_stats_t *f_basics, uint32_t flowid)
         printf("    has %u useful records\n", f_basics->flow_list[idx].record_cnt);
 
         stats_into_plot_file(f_basics, flowid);
+    } else {
+        printf("flow ID %u not found\n", flowid);
     }
 }
 
@@ -837,7 +800,7 @@ cleanup_file_basic_stats(const file_basic_stats_t *f_basics_ptr)
     }
 
     free(f_basics_ptr->first_line_stats);
-    free(f_basics_ptr->last_line_stats->flowid_list);
+    free(f_basics_ptr->last_line_stats->flow_list_str);
     free(f_basics_ptr->last_line_stats);
     free(f_basics_ptr->flow_list);
 
