@@ -7,8 +7,9 @@
  Description : Check siftr log stats in C, Ansi-style
  ============================================================================
  */
+#include "review_siftr2_log.h"
+
 #include <getopt.h>
-#include "review_siftr_log.h"
 
 bool verbose = false;
 
