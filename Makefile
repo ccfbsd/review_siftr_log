@@ -10,7 +10,7 @@ RM = rm -f
 
 
 # the build target executable:
-TARGET = review_siftr_log
+TARGET = review_siftr2_log
 default: $(TARGET)
 
 all: $(TARGET)

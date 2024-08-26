@@ -8,8 +8,8 @@
  ============================================================================
  */
 
-#ifndef REVIEW_SIFTR_LOG_H_
-#define REVIEW_SIFTR_LOG_H_
+#ifndef REVIEW_SIFTR2_LOG_H_
+#define REVIEW_SIFTR2_LOG_H_
 
 #include <assert.h>
 #include <errno.h>
@@ -807,4 +807,4 @@ cleanup_file_basic_stats(const file_basic_stats_t *f_basics_ptr)
     return EXIT_SUCCESS;
 }
 
-#endif /* REVIEW_SIFTR_LOG_H_ */
+#endif /* REVIEW_SIFTR2_LOG_H_ */
