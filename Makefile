@@ -17,7 +17,7 @@ all: $(TARGET)
 
 $(TARGET): $(TARGET).c
 	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c
-	
+
 .PHONY: depend clean
 
 clean:
