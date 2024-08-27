@@ -653,8 +653,8 @@ get_last_line_stats(file_basic_stats_t *f_basics)
 static void
 print_flow_info(flow_info_t *flow_info)
 {
-    printf(" flowid:%10u (%s:%hu<->%s:%hu) mss:%u SACK:%d snd_scal:%hhu "
-           "rcv_scale:%hhu records:%u\n",
+    printf(" id:%10u (%s:%hu<->%s:%hu) mss:%u SACK:%d snd/rcv_scal:%hhu/%hhu "
+           "cnt:%u\n",
            flow_info->flowid,
            flow_info->laddr, flow_info->lport,
            flow_info->faddr, flow_info->fport,
@@ -776,7 +776,7 @@ read_body_by_flowid(file_basic_stats_t *f_basics, uint32_t flowid)
     int idx;
 
     if (is_flowid_in_file(f_basics, flowid, &idx)) {
-        printf("++++++++++++++++++++++++++++++    ++++++++++++++++++++++++++++++\n");
+        printf("++++++++++++++++++++++++++++++    ++++++++++++++++++++++++++++\n");
         printf("  %s:%hu->%s:%hu flowid: %u\n",
                f_basics->flow_list[idx].laddr, f_basics->flow_list[idx].lport,
                f_basics->flow_list[idx].faddr, f_basics->flow_list[idx].fport,
