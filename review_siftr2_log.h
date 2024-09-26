@@ -102,11 +102,16 @@ enum {
 
 /* TCP traffic record fields */
 enum {
-    DIRECTION,      TIMESTAMP,      FLOW_ID,    CWND,   SSTHRESH,
-    SNDWIN,         RCVWIN,         FLAG,       FLAG2,  STATE,
-    SRTT,           RTO,            SND_BUF_HIWAT,      SND_BUF_CC,
-    RCV_BUF_HIWAT,  RCV_BUF_CC,     INFLIGHT_BYTES,     REASS_QLEN,
-    TH_SEQ,         TH_ACK,         TCP_DATA_SZ,
+    DIRECTION,      TIMESTAMP,      FLOW_ID,    CWND,   SSTHRESH,   //5
+    SNDWIN,         RCVWIN,         FLAG,       FLAG2,  STATE,      //10
+    SRTT,           RTO,            SND_BUF_HIWAT,      SND_BUF_CC, //14
+    RCV_BUF_HIWAT,  RCV_BUF_CC,     INFLIGHT_BYTES,     REASS_QLEN, //18
+    TH_SEQ,         TH_ACK,         TCP_DATA_SZ,        TP_NSACKS,  //22
+    TP_SACKBLKS0_S, TP_SACKBLKS0_E, TP_SACKBLKS1_S,     TP_SACKBLKS1_E, //26
+    TP_SACKBLKS2_S, TP_SACKBLKS2_E, TP_SACKBLKS3_S,     TP_SACKBLKS3_E, //30
+    TO_NSACKS,      TO_SACKBLKS0_S, TO_SACKBLKS0_E,     TO_SACKBLKS1_S, //34
+    TO_SACKBLKS1_E, TO_SACKBLKS2_S, TO_SACKBLKS2_E,     TO_SACKBLKS3_S, //38
+    TO_SACKBLKS3_E,
     TOTAL_FIELDS,
 };
 

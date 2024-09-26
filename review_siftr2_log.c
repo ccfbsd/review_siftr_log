@@ -23,7 +23,9 @@ stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
     double first_flow_start_time = 0;
     double relative_time_stamp = 0;
 
-    char cwnd_plot_file_name[MAX_NAME_LENGTH];
+    char sack_plot_file_name[MAX_NAME_LENGTH];
+    long int max_tp_sack_cnt = 0;
+    long int max_to_sack_cnt = 0;
 
     /* Restart seeking and go back to the beginning of the file */
     fseek(f_basics->file, 0, SEEK_SET);
@@ -35,24 +37,30 @@ stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
     }
     lineCount++; // Increment line counter, now shall be at the 2nd line
 
-    // Combine the strings into the cwnd_plot_file buffer
-    snprintf(cwnd_plot_file_name, MAX_NAME_LENGTH, "cwnd_%u.txt", flowid);
-    printf("cwnd_plot_file_name: %s\n", cwnd_plot_file_name);
+    // Combine the strings into the sack_plot_file_name buffer
+    snprintf(sack_plot_file_name, MAX_NAME_LENGTH, "sack_%u.txt", flowid);
+    printf("sack_plot_file_name: %s\n", sack_plot_file_name);
 
-    FILE *cwnd_file = fopen(cwnd_plot_file_name, "w");
-    if (!cwnd_file) {
-        PERROR_FUNCTION("Failed to open cwnd plot file for writing");
+    FILE *sack_file = fopen(sack_plot_file_name, "w");
+    if (!sack_file) {
+        PERROR_FUNCTION("Failed to open sack plot file for writing");
         return;
     }
 
-    fprintf(cwnd_file, "##DIRECTION" TAB "relative_timestamp" TAB "CWND" TAB
-            "SSTHRESH\n");
+    fprintf(sack_file, "##DIRECTION" TAB "relative_timestamp" TAB "th_seq" TAB
+            "th_ack" TAB "data_sz" TAB
+            "tp_nsacks" TAB "tp_sackblks[0]" TAB "tp_sackblks[1]" TAB "tp_sackblks[2]"
+            "to_nsacks" TAB "to_sackblks[0]" TAB "to_sackblks[1]" TAB "to_sackblks[2]"
+            "\n");
 
     while (fgets(current_line, MAX_LINE_LENGTH, f_basics->file) != NULL) {
         if (previous_line[0] != '\0') {
             char *fields[TOTAL_FIELDS];
 
             fill_fields_from_line(fields, previous_line, BODY);
+
+            long int tp_nsacks = my_atol(fields[TP_NSACKS]);
+            long int to_nsacks = my_atol(fields[TO_NSACKS]);
 
             if (first_flow_start_time == 0) {
                 first_flow_start_time = atof(fields[TIMESTAMP]);
@@ -61,7 +69,8 @@ stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
                 relative_time_stamp = atof(fields[TIMESTAMP]) - first_flow_start_time;
             }
 
-            if (my_atol(fields[FLOW_ID]) == flowid) {
+            if (my_atol(fields[FLOW_ID]) == flowid &&
+                (to_nsacks > 0 || tp_nsacks > 0)) {
                 char t_flags_arr[TF_ARRAY_MAX_LENGTH] = {0};
                 char t_flags2_arr[TF2_ARRAY_MAX_LENGTH] = {0};
                 uint32_t t_flags = my_atol(fields[FLAG]);
@@ -70,9 +79,34 @@ stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
                 translate_tflags(t_flags, t_flags_arr, sizeof(t_flags_arr));
                 translate_tflags2(t_flags2, t_flags2_arr, sizeof(t_flags2_arr));
 
-                fprintf(cwnd_file, "%s" TAB "%.6f" TAB "%s" TAB "%s\n",
-                        fields[DIRECTION], relative_time_stamp, fields[CWND],
-                        fields[SSTHRESH]);
+                if (max_tp_sack_cnt < tp_nsacks) {
+                    max_tp_sack_cnt = tp_nsacks;
+                }
+                if (max_to_sack_cnt < to_nsacks) {
+                    max_to_sack_cnt = to_nsacks;
+                }
+
+                fprintf(sack_file,
+                        "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB "%s" TAB
+                        "%s" TAB "(%s,%s)" TAB "(%s,%s)" TAB "(%s,%s)" TAB
+                        "%s" TAB "(%s,%s)" TAB "(%s,%s)" TAB "(%s,%s)" TAB
+                        "\n",
+                        fields[DIRECTION], relative_time_stamp, fields[TH_SEQ],
+                        fields[TH_ACK], fields[TCP_DATA_SZ],
+                        fields[TP_NSACKS],
+                        fields[TP_SACKBLKS0_S], fields[TP_SACKBLKS0_E],
+                        fields[TP_SACKBLKS1_S], fields[TP_SACKBLKS1_E],
+                        fields[TP_SACKBLKS2_S], fields[TP_SACKBLKS2_E],
+                        fields[TO_NSACKS],
+                        fields[TO_SACKBLKS0_S], fields[TO_SACKBLKS0_E],
+                        fields[TO_SACKBLKS1_S], fields[TO_SACKBLKS1_E],
+                        fields[TO_SACKBLKS2_S], fields[TO_SACKBLKS2_E]);
+            }
+            if (tp_nsacks > 3) {
+                PERROR_FUNCTION("fields[TP_NSACKS] > 3");
+            }
+            if (to_nsacks > 3) {
+                PERROR_FUNCTION("fields[TO_NSACKS] > 3");
             }
         }
 
@@ -81,14 +115,16 @@ stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
         strcpy(previous_line, current_line);
     }
 
-    if (fclose(cwnd_file) == EOF) {
-        PERROR_FUNCTION("Failed to close cwnd_file");
+    if (fclose(sack_file) == EOF) {
+        PERROR_FUNCTION("Failed to close sack_file");
     }
 
     f_basics->num_lines = lineCount;
 
     if (verbose) {
         printf("input file has total lines: %u\n", lineCount);
+        printf("max_tp_sack_cnt: %ld, max_to_sack_cnt: %ld\n",
+                max_tp_sack_cnt, max_to_sack_cnt);
     }
 }
 
