@@ -701,7 +701,7 @@ get_flow_count_and_info(file_basic_stats_t *f_basics)
     assert(flow_cnt == f_basics->last_line_stats->global_flow_cnt);
 
     for (int i = 0; i < flow_cnt; i++) {
-        char *fields[TOTAL_FLOWLIST_FIELDS];///xxx
+        char *fields[TOTAL_FLOWLIST_FIELDS];
         flow_info_t target_flow;
 
         fill_fields_from_line(fields, flow_list_arr[i], FOOT);
