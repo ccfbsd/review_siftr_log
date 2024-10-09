@@ -22,6 +22,8 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+typedef u_int32_t tcp_seq;
+
 enum {
     INP_IPV4 = 0x1,		// siftr2 is IPv4 only
     MAX_LINE_LENGTH = 1000,
@@ -30,6 +32,13 @@ enum {
     TF_ARRAY_MAX_LENGTH = 550,
     TF2_ARRAY_MAX_LENGTH = 560,
     PER_FLOW_STRING_LENGTH = (INET6_ADDRSTRLEN*2 + 5*2 + 1),
+    RING_BUFF_SIZE = 30,
+};
+
+/* which host is handling data traffic */
+enum side {
+    SENDER = 0,
+    RECEIVER = 1,
 };
 
 #define COMMA_DELIMITER     ","
@@ -70,6 +79,102 @@ typedef struct {
     char        sysver[8];
     char        ipmode[8];
 } first_line_fields_t;
+
+typedef struct {
+    uint32_t    flowid;     /* flowid of the connection */
+    tcp_seq     th_seq;     /* TCP sequence number */
+    tcp_seq     th_ack;     /* TCP acknowledgement number */
+    uint32_t    data_sz;    /* the length of TCP segment payload in bytes */
+} tcp_pkt_info_t;
+
+inline void
+fill_pkt_info(tcp_pkt_info_t *pkt, uint32_t flowid, tcp_seq th_seq,
+              tcp_seq th_ack, uint32_t data_sz)
+{
+    pkt->flowid = flowid;
+    pkt->th_seq = th_seq;
+    pkt->th_ack = th_ack;
+    pkt->data_sz = data_sz;
+}
+
+void
+print_pkt_info(tcp_pkt_info_t *pkt)
+{
+    printf(" id:%10u th_seq:%u th_ack:%u data_sz:%u\n",
+           pkt->flowid, pkt->th_seq, pkt->th_ack, pkt->data_sz);
+}
+
+/* return true if every member's value of the two pkts is the same */
+inline bool
+cmp_two_pkts(tcp_pkt_info_t *pktA, tcp_pkt_info_t *pktB)
+{
+    return pktA->flowid == pktB->flowid && pktA->th_seq == pktB->th_seq &&
+           pktA->th_ack == pktB->th_ack && pktA->data_sz > 0 && pktB->data_sz > 0;
+}
+
+typedef struct {
+    tcp_pkt_info_t  pkt_info;
+    uint32_t        dup_cnt;
+} dup_data_pkt_t;
+
+typedef struct {
+    dup_data_pkt_t  dup_ring[RING_BUFF_SIZE];   // ring buffer of dup data pkts
+    int             idx;
+    uint32_t        total;
+} dup_data_pkt_ring_t;
+
+inline bool
+find_pkt_in_ring(dup_data_pkt_t ring[], int ring_size, tcp_pkt_info_t *pktB, int *idx)
+{
+    for (int i = 0; i < ring_size; i++) {
+        if (cmp_two_pkts(&ring[i].pkt_info, pktB)) {
+            ring[i].dup_cnt++;
+            *idx = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+void
+find_dup_pkt(dup_data_pkt_ring_t *list, tcp_pkt_info_t *pkt, enum side which)
+{
+    int ring_idx = -1;
+
+    if (find_pkt_in_ring(list->dup_ring, RING_BUFF_SIZE, pkt, &ring_idx)) {
+        list->total++;
+
+        if (which == SENDER && list->dup_ring[ring_idx].dup_cnt > 1) {
+            printf("\n!!! id:%10u th_seq:%u th_ack:%u data_sz:%u dup_cnt:%u !!!\n",
+                   pkt->flowid, pkt->th_seq, pkt->th_ack, pkt->data_sz,
+                   list->dup_ring[ring_idx].dup_cnt);
+        } else if (which == RECEIVER) {
+            printf("\n!!! id:%10u th_seq:%u th_ack:%u data_sz:%u dup_cnt:%u !!!\n",
+                   pkt->flowid, pkt->th_seq, pkt->th_ack, pkt->data_sz,
+                   list->dup_ring[ring_idx].dup_cnt);
+        }
+
+    } else {
+        list->dup_ring[list->idx].pkt_info = *pkt;
+        list->dup_ring[list->idx].dup_cnt = 0;
+        // Move to the next index (circular buffer behavior)
+        list->idx = (list->idx + 1) % RING_BUFF_SIZE;
+    };
+}
+
+void
+print_pkt_ring_info(dup_data_pkt_t ring[], const int ring_size, int ring_idx)
+{
+    int idx = ring_idx;
+
+    printf("\n");
+    for (int i = 0; i < ring_size; i++) {
+        printf("[%d]", i);
+        print_pkt_info(&ring[idx].pkt_info);
+        idx = (idx + 1) % ring_size;
+    }
+    printf("\n");
+}
 
 enum {
     DISABLE_TIME_SECS,
@@ -128,6 +233,8 @@ typedef struct
     uint8_t     snd_scale;                  /* Window scaling for snd window. */
     uint8_t     rcv_scale;                  /* Window scaling for recv window. */
     uint32_t    record_cnt;
+    uint32_t    dir_in;                 /* count for output packets */
+    uint32_t    dir_out;                /* count for input packets */
     bool        is_info_set;
 } flow_info_t;
 
@@ -175,7 +282,7 @@ enum {
 };
 
 extern bool verbose;
-void stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid);
+void stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid, enum side which);
 
 /* There are 32 flag values for t_flags. So assume the caller has provided a
  * large enough array to hold 32 x sizeof("TF_CONGRECOVERY |") == 544 bytes.
@@ -186,100 +293,100 @@ translate_tflags(uint32_t t_flags, char str_array[], uint32_t arr_size)
     assert(arr_size >= (32 * sizeof("TF_CONGRECOVERY")));
 
     if (t_flags & TF_ACKNOW) {
-        strcat(str_array, "TF_ACKNOW | ");
+        strcat(str_array, "| TF_ACKNOW");
     }
     if (t_flags & TF_DELACK) {
-        strcat(str_array, "TF_DELACK | ");
+        strcat(str_array, "| TF_DELACK");
     }
     if (t_flags & TF_NODELAY) {
-        strcat(str_array, "TF_NODELAY | ");
+        strcat(str_array, "| TF_NODELAY");
     }
     if (t_flags & TF_NOOPT) {
-        strcat(str_array, "TF_NOOPT | ");
+        strcat(str_array, "| TF_NOOPT");
     }
     if (t_flags & TF_SENTFIN) {
-        strcat(str_array, "TF_SENTFIN | ");
+        strcat(str_array, "| TF_SENTFIN");
     }
     if (t_flags & TF_REQ_SCALE) {
-        strcat(str_array, "TF_REQ_SCALE | ");
+        strcat(str_array, "| TF_REQ_SCALE");
     }
     if (t_flags & TF_RCVD_SCALE) {
-        strcat(str_array, "TF_RCVD_SCALE | ");
+        strcat(str_array, "| TF_RCVD_SCALE");
     }
     if (t_flags & TF_REQ_TSTMP) {
-        strcat(str_array, "TF_REQ_TSTMP | ");
+        strcat(str_array, "| TF_REQ_TSTMP");
     }
     if (t_flags & TF_RCVD_TSTMP) {
-        strcat(str_array, "TF_RCVD_TSTMP | ");
+        strcat(str_array, "| TF_RCVD_TSTMP");
     }
     if (t_flags & TF_SACK_PERMIT) {
-        strcat(str_array, "TF_SACK_PERMIT | ");
+        strcat(str_array, "| TF_SACK_PERMIT");
     }
     if (t_flags & TF_NEEDSYN) {
-        strcat(str_array, "TF_NEEDSYN | ");
+        strcat(str_array, "| TF_NEEDSYN");
     }
     if (t_flags & TF_NEEDFIN) {
-        strcat(str_array, "TF_NEEDFIN | ");
+        strcat(str_array, "| TF_NEEDFIN");
     }
     if (t_flags & TF_NOPUSH) {
-        strcat(str_array, "TF_NOPUSH | ");
+        strcat(str_array, "| TF_NOPUSH");
     }
     if (t_flags & TF_PREVVALID) {
-        strcat(str_array, "TF_PREVVALID | ");
+        strcat(str_array, "| TF_PREVVALID");
     }
     if (t_flags & TF_WAKESOR) {
-        strcat(str_array, "TF_WAKESOR | ");
+        strcat(str_array, "| TF_WAKESOR");
     }
     if (t_flags & TF_GPUTINPROG) {
-        strcat(str_array, "TF_GPUTINPROG | ");
+        strcat(str_array, "| TF_GPUTINPROG");
     }
     if (t_flags & TF_MORETOCOME) {
-        strcat(str_array, "TF_MORETOCOME | ");
+        strcat(str_array, "| TF_MORETOCOME");
     }
     if (t_flags & TF_SONOTCONN) {
-        strcat(str_array, "TF_SONOTCONN | ");
+        strcat(str_array, "| TF_SONOTCONN");
     }
     if (t_flags & TF_LASTIDLE) {
-        strcat(str_array, "TF_LASTIDLE | ");
+        strcat(str_array, "| TF_LASTIDLE");
     }
     if (t_flags & TF_RXWIN0SENT) {
-        strcat(str_array, "TF_RXWIN0SENT | ");
+        strcat(str_array, "| TF_RXWIN0SENT");
     }
     if (t_flags & TF_FASTRECOVERY) {
-        strcat(str_array, "TF_FASTRECOVERY | ");
+        strcat(str_array, "| TF_FASTRECOVERY");
     }
     if (t_flags & TF_WASFRECOVERY) {
-        strcat(str_array, "TF_WASFRECOVERY | ");
+        strcat(str_array, "| TF_WASFRECOVERY");
     }
     if (t_flags & TF_SIGNATURE) {
-        strcat(str_array, "TF_SIGNATURE | ");
+        strcat(str_array, "| TF_SIGNATURE");
     }
     if (t_flags & TF_FORCEDATA) {
-        strcat(str_array, "TF_FORCEDATA | ");
+        strcat(str_array, "| TF_FORCEDATA");
     }
     if (t_flags & TF_TSO) {
-        strcat(str_array, "TF_TSO | ");
+        strcat(str_array, "| TF_TSO");
     }
     if (t_flags & TF_TOE) {
-        strcat(str_array, "TF_TOE | ");
+        strcat(str_array, "| TF_TOE");
     }
     if (t_flags & TF_CLOSED) {
-        strcat(str_array, "TF_CLOSED | ");
+        strcat(str_array, "| TF_CLOSED");
     }
     if (t_flags & TF_SENTSYN) {
-        strcat(str_array, "TF_SENTSYN | ");
+        strcat(str_array, "| TF_SENTSYN");
     }
     if (t_flags & TF_LRD) {
-        strcat(str_array, "TF_LRD | ");
+        strcat(str_array, "| TF_LRD");
     }
     if (t_flags & TF_CONGRECOVERY) {
-        strcat(str_array, "TF_CONGRECOVERY | ");
+        strcat(str_array, "| TF_CONGRECOVERY");
     }
     if (t_flags & TF_WASCRECOVERY) {
-        strcat(str_array, "TF_WASCRECOVERY | ");
+        strcat(str_array, "| TF_WASCRECOVERY");
     }
     if (t_flags & TF_FASTOPEN) {
-        strcat(str_array, "TF_FASTOPEN | ");
+        strcat(str_array, "| TF_FASTOPEN");
     }
 }
 
@@ -293,73 +400,73 @@ translate_tflags2(uint32_t t_flags2, char str_array[], uint32_t arr_size)
     assert(arr_size >= (23 * sizeof("TF2_PROC_SACK_PROHIBIT")));
 
     if (t_flags2 & TF2_PLPMTU_BLACKHOLE) {
-        strcat(str_array, "TF2_PLPMTU_BLACKHOLE | ");
+        strcat(str_array, "| TF2_PLPMTU_BLACKHOLE");
     }
     if (t_flags2 & TF2_PLPMTU_PMTUD) {
-        strcat(str_array, "TF2_PLPMTU_PMTUD | ");
+        strcat(str_array, "| TF2_PLPMTU_PMTUD");
     }
     if (t_flags2 & TF2_PLPMTU_MAXSEGSNT) {
-        strcat(str_array, "TF2_PLPMTU_MAXSEGSNT | ");
+        strcat(str_array, "| TF2_PLPMTU_MAXSEGSNT");
     }
     if (t_flags2 & TF2_LOG_AUTO) {
-        strcat(str_array, "TF2_LOG_AUTO | ");
+        strcat(str_array, "| TF2_LOG_AUTO");
     }
     if (t_flags2 & TF2_DROP_AF_DATA) {
-        strcat(str_array, "TF2_DROP_AF_DATA | ");
+        strcat(str_array, "| TF2_DROP_AF_DATA");
     }
     if (t_flags2 & TF2_ECN_PERMIT) {
-        strcat(str_array, "TF2_ECN_PERMIT | ");
+        strcat(str_array, "| TF2_ECN_PERMIT");
     }
     if (t_flags2 & TF2_ECN_SND_CWR) {
-        strcat(str_array, "TF2_ECN_SND_CWR | ");
+        strcat(str_array, "| TF2_ECN_SND_CWR");
     }
     if (t_flags2 & TF2_ECN_SND_ECE) {
-        strcat(str_array, "TF2_ECN_SND_ECE | ");
+        strcat(str_array, "| TF2_ECN_SND_ECE");
     }
     if (t_flags2 & TF2_ACE_PERMIT) {
-        strcat(str_array, "TF2_ACE_PERMIT | ");
+        strcat(str_array, "| TF2_ACE_PERMIT");
     }
     if (t_flags2 & TF2_HPTS_CPU_SET) {
-        strcat(str_array, "TF2_HPTS_CPU_SET | ");
+        strcat(str_array, "| TF2_HPTS_CPU_SET");
     }
     if (t_flags2 & TF2_FBYTES_COMPLETE) {
-        strcat(str_array, "TF2_FBYTES_COMPLETE | ");
+        strcat(str_array, "| TF2_FBYTES_COMPLETE");
     }
     if (t_flags2 & TF2_ECN_USE_ECT1) {
-        strcat(str_array, "TF2_ECN_USE_ECT1 | ");
+        strcat(str_array, "| TF2_ECN_USE_ECT1");
     }
     if (t_flags2 & TF2_TCP_ACCOUNTING) {
-        strcat(str_array, "TF2_TCP_ACCOUNTING | ");
+        strcat(str_array, "| TF2_TCP_ACCOUNTING");
     }
     if (t_flags2 & TF2_HPTS_CALLS) {
-        strcat(str_array, "TF2_HPTS_CALLS | ");
+        strcat(str_array, "| TF2_HPTS_CALLS");
     }
     if (t_flags2 & TF2_MBUF_L_ACKS) {
-        strcat(str_array, "TF2_MBUF_L_ACKS | ");
+        strcat(str_array, "| TF2_MBUF_L_ACKS");
     }
     if (t_flags2 & TF2_MBUF_ACKCMP) {
-        strcat(str_array, "TF2_MBUF_ACKCMP | ");
+        strcat(str_array, "| TF2_MBUF_ACKCMP");
     }
     if (t_flags2 & TF2_SUPPORTS_MBUFQ) {
-        strcat(str_array, "TF2_SUPPORTS_MBUFQ | ");
+        strcat(str_array, "| TF2_SUPPORTS_MBUFQ");
     }
     if (t_flags2 & TF2_MBUF_QUEUE_READY) {
-        strcat(str_array, "TF2_MBUF_QUEUE_READY | ");
+        strcat(str_array, "| TF2_MBUF_QUEUE_READY");
     }
     if (t_flags2 & TF2_DONT_SACK_QUEUE) {
-        strcat(str_array, "TF2_DONT_SACK_QUEUE | ");
+        strcat(str_array, "| TF2_DONT_SACK_QUEUE");
     }
     if (t_flags2 & TF2_CANNOT_DO_ECN) {
-        strcat(str_array, "TF2_CANNOT_DO_ECN | ");
+        strcat(str_array, "| TF2_CANNOT_DO_ECN");
     }
     if (t_flags2 & TF2_PROC_SACK_PROHIBIT) {
-        strcat(str_array, "TF2_PROC_SACK_PROHIBIT | ");
+        strcat(str_array, "| TF2_PROC_SACK_PROHIBIT");
     }
     if (t_flags2 & TF2_IPSEC_TSO) {
-        strcat(str_array, "TF2_IPSEC_TSO | ");
+        strcat(str_array, "| TF2_IPSEC_TSO");
     }
     if (t_flags2 & TF2_NO_ISS_CHECK) {
-        strcat(str_array, "TF2_NO_ISS_CHECK | ");
+        strcat(str_array, "| TF2_NO_ISS_CHECK");
     }
 }
 
@@ -411,7 +518,8 @@ fill_flow_info(flow_info_t *target_flow, char *fields[])
         target_flow->snd_scale = (uint8_t)my_atol(fields[FL_SNDSCALE]);
         target_flow->rcv_scale = (uint8_t)my_atol(fields[FL_RCVSCALE]);
         target_flow->record_cnt = (uint32_t)my_atol(fields[FL_NUMRECORD]);
-
+        target_flow->dir_in = 0;
+        target_flow->dir_out = 0;
         target_flow->is_info_set = true;
     }
 }
@@ -776,19 +884,25 @@ show_file_basic_stats(const file_basic_stats_t *f_basics)
 
 /* Read the body of the per-flow stats, and skip the head or foot note. */
 void
-read_body_by_flowid(file_basic_stats_t *f_basics, uint32_t flowid)
+read_body_by_flowid(file_basic_stats_t *f_basics, uint32_t flowid, enum side which)
 {
     int idx;
 
     if (is_flowid_in_file(f_basics, flowid, &idx)) {
-        printf("++++++++++++++++++++++++++++++    ++++++++++++++++++++++++++++\n");
+        stats_into_plot_file(f_basics, flowid, which);
+
+        printf("++++++++++++++++++++++++++++++ summary ++++++++++++++++++++++++++++\n");
         printf("  %s:%hu->%s:%hu flowid: %u\n",
                f_basics->flow_list[idx].laddr, f_basics->flow_list[idx].lport,
                f_basics->flow_list[idx].faddr, f_basics->flow_list[idx].fport,
                flowid);
-        printf("    has %u useful records\n", f_basics->flow_list[idx].record_cnt);
-
-        stats_into_plot_file(f_basics, flowid);
+        printf("    has %u useful records (%u outputs, %u inputs)\n",
+               f_basics->flow_list[idx].record_cnt,
+               f_basics->flow_list[idx].dir_out,
+               f_basics->flow_list[idx].dir_in);
+        assert(f_basics->flow_list[idx].record_cnt ==
+               (f_basics->flow_list[idx].dir_in +
+                f_basics->flow_list[idx].dir_out));
     } else {
         printf("flow ID %u not found\n", flowid);
     }
