@@ -63,13 +63,13 @@ enum {
     TOTAL_FIRST_LINE_FIELDS,
 };
 
-typedef struct {
-    struct timeval enable_time;
+struct first_line_fields {
     char        siftrver[8];
     char        sysname[8];
     char        sysver[8];
     char        ipmode[8];
-} first_line_fields_t;
+    struct timeval enable_time;
+};
 
 enum {
     DISABLE_TIME_SECS,
@@ -83,15 +83,15 @@ enum {
     TOTAL_LAST_LINE_FIELDS,
 };
 
-typedef struct {
-    struct timeval disable_time;
+struct last_line_fields {
     uint32_t    global_flow_cnt;
     uint32_t    max_tmp_qsize;
     uint32_t    avg_tmp_qsize;
     uint32_t    max_str_size;
     uint32_t    alq_getn_fail_cnt;
     char        *flow_list_str;
-} last_line_fields_t;
+    struct timeval disable_time;
+};
 
 /* flow list fields in the foot note of the siftr2 log */
 enum {
@@ -110,8 +110,7 @@ enum {
     TOTAL_FIELDS,
 };
 
-typedef struct
-{
+struct flow_info {
     uint32_t    flowid;                     /* flowid of the connection */
     char        laddr[INET6_ADDRSTRLEN];    /* local IP address */
     char        faddr[INET6_ADDRSTRLEN];    /* foreign IP address */
@@ -124,16 +123,16 @@ typedef struct
     uint8_t     rcv_scale;                  /* Window scaling for recv window. */
     uint32_t    record_cnt;
     bool        is_info_set;
-} flow_info_t;
+};
 
-typedef struct {
-    FILE                    *file;
-    first_line_fields_t     *first_line_stats;
-    last_line_fields_t      *last_line_stats;
-    uint32_t                num_lines;
-    uint32_t                flow_count;
-    flow_info_t             *flow_list;
-} file_basic_stats_t;
+struct file_basic_stats {
+    FILE        *file;
+    uint32_t    num_lines;
+    uint32_t    flow_count;
+    struct flow_info *flow_list;
+    struct first_line_fields *first_line_stats;
+    struct last_line_fields *last_line_stats;
+};
 
 /* Flags for the tp->t_flags field. */
 enum {
@@ -170,7 +169,7 @@ enum {
 };
 
 extern bool verbose;
-void stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid);
+void stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid);
 
 /* There are 32 flag values for t_flags. So assume the caller has provided a
  * large enough array to hold 32 x sizeof("TF_CONGRECOVERY |") == 544 bytes.
@@ -392,7 +391,7 @@ my_atol(const char *str)
 }
 
 void
-fill_flow_info(flow_info_t *target_flow, char *fields[])
+fill_flow_info(struct flow_info *target_flow, char *fields[])
 {
     if (target_flow != NULL) {
         target_flow->flowid = (uint32_t)my_atol(fields[FL_FLOW_ID]);
@@ -506,7 +505,7 @@ fill_fields_from_line(char **fields, char *line, enum line_type type)
 }
 
 bool
-is_flowid_in_file(const file_basic_stats_t *f_basics, uint32_t flowid, int *idx)
+is_flowid_in_file(const struct file_basic_stats *f_basics, uint32_t flowid, int *idx)
 {
     for (int i = 0; i < f_basics->flow_count; i++) {
         if (f_basics->flow_list[i].flowid == flowid) {
@@ -518,10 +517,10 @@ is_flowid_in_file(const file_basic_stats_t *f_basics, uint32_t flowid, int *idx)
 }
 
 static inline void
-get_first_line_stats(file_basic_stats_t *f_basics)
+get_first_line_stats(struct file_basic_stats *f_basics)
 {
     FILE *file = f_basics->file;
-    first_line_fields_t *f_line_stats = NULL;
+    struct first_line_fields *f_line_stats = NULL;
     char *firstLine = (char *)calloc(MAX_LINE_LENGTH, sizeof(char));
     if (firstLine == NULL) {
         PERROR_FUNCTION("malloc");
@@ -533,7 +532,7 @@ get_first_line_stats(file_basic_stats_t *f_basics)
         /* 6 fields in the first line */
         char *fields[TOTAL_FIRST_LINE_FIELDS];
         uint32_t field_count = 0;
-        f_line_stats = (first_line_fields_t *)malloc(sizeof(first_line_fields_t));
+        f_line_stats = (struct first_line_fields *)malloc(sizeof(*f_line_stats));
 
         /* Strip newline characters at the end */
         firstLine[strcspn(firstLine, "\r\n")] = '\0';
@@ -578,10 +577,10 @@ get_first_line_stats(file_basic_stats_t *f_basics)
 }
 
 static inline void
-get_last_line_stats(file_basic_stats_t *f_basics)
+get_last_line_stats(struct file_basic_stats *f_basics)
 {
     FILE *file = f_basics->file;
-    last_line_fields_t *l_line_stats = NULL;
+    struct last_line_fields *l_line_stats = NULL;
     char *lastLine = (char *)calloc(MAX_LINE_LENGTH, sizeof(char));
     if (lastLine == NULL) {
         PERROR_FUNCTION("malloc");
@@ -591,7 +590,7 @@ get_last_line_stats(file_basic_stats_t *f_basics)
     if (read_last_line(file, lastLine) == EXIT_SUCCESS) {
         char *fields[TOTAL_LAST_LINE_FIELDS];
         uint32_t field_count = 0;
-        l_line_stats = (last_line_fields_t *)malloc(sizeof(last_line_fields_t));
+        l_line_stats = (struct last_line_fields *)malloc(sizeof(*l_line_stats));
         if (l_line_stats == NULL) {
             PERROR_FUNCTION("malloc failed for l_line_stats");
         }
@@ -651,7 +650,7 @@ get_last_line_stats(file_basic_stats_t *f_basics)
 }
 
 static void
-print_flow_info(flow_info_t *flow_info)
+print_flow_info(struct flow_info *flow_info)
 {
     printf(" id:%10u (%s:%hu<->%s:%hu) mss:%u SACK:%d snd/rcv_scal:%hhu/%hhu "
            "cnt:%u\n",
@@ -664,7 +663,7 @@ print_flow_info(flow_info_t *flow_info)
 }
 
 static inline void
-get_flow_count_and_info(file_basic_stats_t *f_basics)
+get_flow_count_and_info(struct file_basic_stats *f_basics)
 {
     uint32_t flow_cnt = f_basics->last_line_stats->global_flow_cnt;
     char **flow_list_arr;
@@ -681,7 +680,7 @@ get_flow_count_and_info(file_basic_stats_t *f_basics)
         return;
     }
     f_basics->flow_count = flow_cnt;
-    f_basics->flow_list = (flow_info_t*)calloc(flow_cnt, sizeof(flow_info_t));
+    f_basics->flow_list = (struct flow_info*)calloc(flow_cnt, sizeof(struct flow_info));
     flow_list_arr = (char **)malloc(flow_cnt * sizeof(char **));
 
     flow_cnt = 0;
@@ -697,7 +696,7 @@ get_flow_count_and_info(file_basic_stats_t *f_basics)
 
     for (int i = 0; i < flow_cnt; i++) {
         char *fields[TOTAL_FLOWLIST_FIELDS];
-        flow_info_t target_flow;
+        struct flow_info target_flow;
 
         fill_fields_from_line(fields, flow_list_arr[i], FOOT);
         fill_flow_info(&target_flow, fields);
@@ -709,7 +708,7 @@ get_flow_count_and_info(file_basic_stats_t *f_basics)
 }
 
 int
-get_file_basics(file_basic_stats_t *f_basics, const char *file_name)
+get_file_basics(struct file_basic_stats *f_basics, const char *file_name)
 {
     FILE *file = fopen(file_name, "r");
     if (!file) {
@@ -736,7 +735,7 @@ get_file_basics(file_basic_stats_t *f_basics, const char *file_name)
 }
 
 void
-show_file_basic_stats(const file_basic_stats_t *f_basics)
+show_file_basic_stats(const struct file_basic_stats *f_basics)
 {
     struct timeval result;
     double time_in_seconds;
@@ -771,7 +770,7 @@ show_file_basic_stats(const file_basic_stats_t *f_basics)
 
 /* Read the body of the per-flow stats, and skip the head or foot note. */
 void
-read_body_by_flowid(file_basic_stats_t *f_basics, uint32_t flowid)
+read_body_by_flowid(struct file_basic_stats *f_basics, uint32_t flowid)
 {
     int idx;
 
@@ -790,7 +789,7 @@ read_body_by_flowid(file_basic_stats_t *f_basics, uint32_t flowid)
 }
 
 int
-cleanup_file_basic_stats(const file_basic_stats_t *f_basics_ptr)
+cleanup_file_basic_stats(const struct file_basic_stats *f_basics_ptr)
 {
 
     // Close the file and check for errors
