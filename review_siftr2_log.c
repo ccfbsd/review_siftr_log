@@ -14,7 +14,7 @@
 bool verbose = false;
 
 void
-stats_into_plot_file(file_basic_stats_t *f_basics, uint32_t flowid)
+stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
 {
     uint32_t lineCount = 0;
     char current_line[MAX_LINE_LENGTH];
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     struct timeval start, end;
     gettimeofday(&start, NULL);
 
-    file_basic_stats_t f_basics = {0};
+    struct file_basic_stats f_basics = {0};
 
     int opt;
     int opt_idx = 0;
