@@ -89,9 +89,9 @@ int main(int argc, char *argv[]) {
     struct file_basic_stats f_basics = {0};
 
     int opt, idx;
-    int option_index = 0;
-    bool option_match = false, f_opt_match = false;
-    struct option long_options[] = {
+    int opt_idx = 0;
+    bool opt_match = false, f_opt_match = false;
+    struct option long_opts[] = {
         {"help", no_argument, 0, 'h'},
         {"file", required_argument, 0, 'f'},
         {"stats", required_argument, 0, 's'},
@@ -100,14 +100,14 @@ int main(int argc, char *argv[]) {
     };
 
     // Process command-line arguments
-    while ((opt = getopt_long(argc, argv, "vhf:s:", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "vhf:s:", long_opts, &opt_idx)) != -1) {
         switch (opt) {
             case 'v':
-                verbose = option_match = true;
+                verbose = opt_match = true;
                 printf("verbose mode enabled\n");
                 break;
             case 'h':
-                option_match = true;
+                opt_match = true;
                 printf("Usage: %s [options]\n", argv[0]);
                 printf(" -h, --help          Display this help message\n");
                 printf(" -f, --file          Get siftr log basics\n");
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
                 printf(" -v, --verbose       Verbose mode\n");
                 break;
             case 'f':
-                f_opt_match = option_match = true;
+                f_opt_match = opt_match = true;
                 printf("input file name: %s\n", optarg);
                 if (get_file_basics(&f_basics, optarg) != EXIT_SUCCESS) {
                     PERROR_FUNCTION("get_file_basics() failed");
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
                 show_file_basic_stats(&f_basics);
                 break;
             case 's':
-                option_match = true;
+                opt_match = true;
                 printf("input flow id is: %s", optarg);
                 if (!f_opt_match) {
                     printf(", but no data file is given\n");
@@ -146,13 +146,13 @@ int main(int argc, char *argv[]) {
     }
 
     /* Handle case where no options are provided or non-option arguments */
-    if (!option_match) {
+    if (!opt_match) {
         printf("Un-expected argument!\n");
         printf("Usage: %s [-v] [-h] [-f file_name] [-s flow_id]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (option_match && !f_opt_match) {
+    if (opt_match && !f_opt_match) {
         return EXIT_SUCCESS;
     }
 
