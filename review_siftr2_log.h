@@ -122,6 +122,8 @@ struct flow_info {
     uint8_t     snd_scale;                  /* Window scaling for snd window. */
     uint8_t     rcv_scale;                  /* Window scaling for recv window. */
     uint32_t    record_cnt;
+    uint32_t    dir_in;                 /* count for output packets */
+    uint32_t    dir_out;                /* count for input packets */
     bool        is_info_set;
 };
 
@@ -405,7 +407,8 @@ fill_flow_info(struct flow_info *target_flow, char *fields[])
         target_flow->snd_scale = (uint8_t)my_atol(fields[FL_SNDSCALE]);
         target_flow->rcv_scale = (uint8_t)my_atol(fields[FL_RCVSCALE]);
         target_flow->record_cnt = (uint32_t)my_atol(fields[FL_NUMRECORD]);
-
+        target_flow->dir_in = 0;
+        target_flow->dir_out = 0;
         target_flow->is_info_set = true;
     }
 }
@@ -775,14 +778,21 @@ read_body_by_flowid(struct file_basic_stats *f_basics, uint32_t flowid)
     int idx;
 
     if (is_flowid_in_file(f_basics, flowid, &idx)) {
-        printf("++++++++++++++++++++++++++++++    ++++++++++++++++++++++++++++\n");
+        stats_into_plot_file(f_basics, flowid);
+
+        printf("++++++++++++++++++++++++++++++ summary ++++++++++++++++++++++++++++\n");
         printf("  %s:%hu->%s:%hu flowid: %u\n",
                f_basics->flow_list[idx].laddr, f_basics->flow_list[idx].lport,
                f_basics->flow_list[idx].faddr, f_basics->flow_list[idx].fport,
                flowid);
-        printf("    has %u useful records\n", f_basics->flow_list[idx].record_cnt);
+        printf("    has %u useful records (%u outputs, %u inputs)\n",
+               f_basics->flow_list[idx].record_cnt,
+               f_basics->flow_list[idx].dir_out,
+               f_basics->flow_list[idx].dir_in);
 
-        stats_into_plot_file(f_basics, flowid);
+        assert(f_basics->flow_list[idx].record_cnt ==
+               (f_basics->flow_list[idx].dir_in +
+                f_basics->flow_list[idx].dir_out));
     } else {
         printf("flow ID %u not found\n", flowid);
     }
