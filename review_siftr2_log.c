@@ -25,6 +25,16 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
 
     char cwnd_plot_file_name[MAX_NAME_LENGTH];
 
+    int idx;
+
+    if (!is_flowid_in_file(f_basics, flowid, &idx)) {
+        printf("%s:%u: flow ID %u not found\n", __FUNCTION__, __LINE__, flowid);
+        PERROR_FUNCTION("Failed to open sack plot file for writing");
+        return;
+    }
+    assert((0 == f_basics->flow_list[idx].dir_in) &&
+           (0 == f_basics->flow_list[idx].dir_out));
+
     /* Restart seeking and go back to the beginning of the file */
     fseek(f_basics->file, 0, SEEK_SET);
 
@@ -69,6 +79,12 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
 
                 translate_tflags(t_flags, t_flags_arr, sizeof(t_flags_arr));
                 translate_tflags2(t_flags2, t_flags2_arr, sizeof(t_flags2_arr));
+
+                if (strcmp(fields[DIRECTION], "o") == 0) {
+                    f_basics->flow_list[idx].dir_out++;
+                } else {
+                    f_basics->flow_list[idx].dir_in++;
+                }
 
                 fprintf(cwnd_file, "%s" TAB "%.6f" TAB "%s" TAB "%s\n",
                         fields[DIRECTION], relative_time_stamp, fields[CWND],
