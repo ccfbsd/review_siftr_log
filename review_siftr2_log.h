@@ -212,6 +212,11 @@ translate_tflags(uint32_t flags, char str_array[], size_t arr_size)
 {
     assert(arr_size >= (32 * sizeof("TF_CONGRECOVERY")));
 
+    if (flags == 0) {
+        strcat(str_array, "N/A");
+        return;
+    }
+
     if (flags & TF_ACKNOW) {
         strcat(str_array, "TF_ACKNOW | ");
     }
@@ -315,77 +320,82 @@ translate_tflags(uint32_t flags, char str_array[], size_t arr_size)
  * bytes.
  */
 void
-translate_tflags2(uint32_t t_flags2, char str_array[], size_t arr_size)
+translate_tflags2(uint32_t flags, char str_array[], size_t arr_size)
 {
     assert(arr_size >= (23 * sizeof("TF2_PROC_SACK_PROHIBIT")));
 
-    if (t_flags2 & TF2_PLPMTU_BLACKHOLE) {
+    if (flags == 0) {
+        strcat(str_array, "N/A");
+        return;
+    }
+
+    if (flags & TF2_PLPMTU_BLACKHOLE) {
         strcat(str_array, "TF2_PLPMTU_BLACKHOLE | ");
     }
-    if (t_flags2 & TF2_PLPMTU_PMTUD) {
+    if (flags & TF2_PLPMTU_PMTUD) {
         strcat(str_array, "TF2_PLPMTU_PMTUD | ");
     }
-    if (t_flags2 & TF2_PLPMTU_MAXSEGSNT) {
+    if (flags & TF2_PLPMTU_MAXSEGSNT) {
         strcat(str_array, "TF2_PLPMTU_MAXSEGSNT | ");
     }
-    if (t_flags2 & TF2_LOG_AUTO) {
+    if (flags & TF2_LOG_AUTO) {
         strcat(str_array, "TF2_LOG_AUTO | ");
     }
-    if (t_flags2 & TF2_DROP_AF_DATA) {
+    if (flags & TF2_DROP_AF_DATA) {
         strcat(str_array, "TF2_DROP_AF_DATA | ");
     }
-    if (t_flags2 & TF2_ECN_PERMIT) {
+    if (flags & TF2_ECN_PERMIT) {
         strcat(str_array, "TF2_ECN_PERMIT | ");
     }
-    if (t_flags2 & TF2_ECN_SND_CWR) {
+    if (flags & TF2_ECN_SND_CWR) {
         strcat(str_array, "TF2_ECN_SND_CWR | ");
     }
-    if (t_flags2 & TF2_ECN_SND_ECE) {
+    if (flags & TF2_ECN_SND_ECE) {
         strcat(str_array, "TF2_ECN_SND_ECE | ");
     }
-    if (t_flags2 & TF2_ACE_PERMIT) {
+    if (flags & TF2_ACE_PERMIT) {
         strcat(str_array, "TF2_ACE_PERMIT | ");
     }
-    if (t_flags2 & TF2_HPTS_CPU_SET) {
+    if (flags & TF2_HPTS_CPU_SET) {
         strcat(str_array, "TF2_HPTS_CPU_SET | ");
     }
-    if (t_flags2 & TF2_FBYTES_COMPLETE) {
+    if (flags & TF2_FBYTES_COMPLETE) {
         strcat(str_array, "TF2_FBYTES_COMPLETE | ");
     }
-    if (t_flags2 & TF2_ECN_USE_ECT1) {
+    if (flags & TF2_ECN_USE_ECT1) {
         strcat(str_array, "TF2_ECN_USE_ECT1 | ");
     }
-    if (t_flags2 & TF2_TCP_ACCOUNTING) {
+    if (flags & TF2_TCP_ACCOUNTING) {
         strcat(str_array, "TF2_TCP_ACCOUNTING | ");
     }
-    if (t_flags2 & TF2_HPTS_CALLS) {
+    if (flags & TF2_HPTS_CALLS) {
         strcat(str_array, "TF2_HPTS_CALLS | ");
     }
-    if (t_flags2 & TF2_MBUF_L_ACKS) {
+    if (flags & TF2_MBUF_L_ACKS) {
         strcat(str_array, "TF2_MBUF_L_ACKS | ");
     }
-    if (t_flags2 & TF2_MBUF_ACKCMP) {
+    if (flags & TF2_MBUF_ACKCMP) {
         strcat(str_array, "TF2_MBUF_ACKCMP | ");
     }
-    if (t_flags2 & TF2_SUPPORTS_MBUFQ) {
+    if (flags & TF2_SUPPORTS_MBUFQ) {
         strcat(str_array, "TF2_SUPPORTS_MBUFQ | ");
     }
-    if (t_flags2 & TF2_MBUF_QUEUE_READY) {
+    if (flags & TF2_MBUF_QUEUE_READY) {
         strcat(str_array, "TF2_MBUF_QUEUE_READY | ");
     }
-    if (t_flags2 & TF2_DONT_SACK_QUEUE) {
+    if (flags & TF2_DONT_SACK_QUEUE) {
         strcat(str_array, "TF2_DONT_SACK_QUEUE | ");
     }
-    if (t_flags2 & TF2_CANNOT_DO_ECN) {
+    if (flags & TF2_CANNOT_DO_ECN) {
         strcat(str_array, "TF2_CANNOT_DO_ECN | ");
     }
-    if (t_flags2 & TF2_PROC_SACK_PROHIBIT) {
+    if (flags & TF2_PROC_SACK_PROHIBIT) {
         strcat(str_array, "TF2_PROC_SACK_PROHIBIT | ");
     }
-    if (t_flags2 & TF2_IPSEC_TSO) {
+    if (flags & TF2_IPSEC_TSO) {
         strcat(str_array, "TF2_IPSEC_TSO | ");
     }
-    if (t_flags2 & TF2_NO_ISS_CHECK) {
+    if (flags & TF2_NO_ISS_CHECK) {
         strcat(str_array, "TF2_NO_ISS_CHECK | ");
     }
 }
