@@ -100,13 +100,13 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
                     f_basics->flow_list[idx].dir_in++;
                 }
 
-		fprintf(cwnd_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
-			"%u" TAB "%u" TAB "%4u" TAB "%s"
-			"\n",
-			fields[DIRECTION], relative_time_stamp, fields[CWND],
-			fields[SSTHRESH],
-			local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz,
-			recovery_flags_arr);
+                fprintf(cwnd_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
+                        "%u" TAB "%u" TAB "%4u" TAB "%s"
+                        "\n",
+                        fields[DIRECTION], relative_time_stamp, fields[CWND],
+                        fields[SSTHRESH],
+                        local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz,
+                        recovery_flags_arr);
             }
         }
 
