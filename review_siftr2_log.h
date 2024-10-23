@@ -22,6 +22,8 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+typedef u_int32_t tcp_seq;
+
 enum {
     INP_IPV4 = 0x1,		// siftr2 is IPv4 only
     MAX_LINE_LENGTH = 1000,
@@ -110,6 +112,30 @@ enum {
     TOTAL_FIELDS,
 };
 
+struct pkt_info {
+    uint32_t    flowid;     /* flowid of the connection */
+    tcp_seq     th_seq;     /* TCP sequence number */
+    tcp_seq     th_ack;     /* TCP acknowledgement number */
+    uint32_t    data_sz;    /* the length of TCP segment payload in bytes */
+};
+
+inline void
+fill_pkt_info(struct pkt_info *pkt, uint32_t flowid, tcp_seq th_seq,
+              tcp_seq th_ack, uint32_t data_sz)
+{
+    pkt->flowid = flowid;
+    pkt->th_seq = th_seq;
+    pkt->th_ack = th_ack;
+    pkt->data_sz = data_sz;
+}
+
+inline void
+print_pkt_info(struct pkt_info *pkt)
+{
+    printf(" id:%10u th_seq:%u th_ack:%u data_sz:%u\n",
+           pkt->flowid, pkt->th_seq, pkt->th_ack, pkt->data_sz);
+}
+
 struct flow_info {
     uint32_t    flowid;                     /* flowid of the connection */
     char        laddr[INET6_ADDRSTRLEN];    /* local IP address */
@@ -170,6 +196,11 @@ enum {
     TF2_NO_ISS_CHECK = 0x00400000,
 };
 
+#define IN_FASTRECOVERY(t_flags)    (t_flags & TF_FASTRECOVERY)
+#define IN_CONGRECOVERY(t_flags)    (t_flags & TF_CONGRECOVERY)
+#define IN_RECOVERY(t_flags) (t_flags & (TF_CONGRECOVERY | TF_FASTRECOVERY))
+#define WAS_RECOVERY(t_flags) (t_flags & (TF_WASFRECOVERY | TF_WASCRECOVERY))
+
 extern bool verbose;
 void stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid);
 
@@ -177,104 +208,104 @@ void stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid);
  * large enough array to hold 32 x sizeof("TF_CONGRECOVERY |") == 544 bytes.
  */
 void
-translate_tflags(uint32_t t_flags, char str_array[], uint32_t arr_size)
+translate_tflags(uint32_t flags, char str_array[], size_t arr_size)
 {
     assert(arr_size >= (32 * sizeof("TF_CONGRECOVERY")));
 
-    if (t_flags & TF_ACKNOW) {
+    if (flags & TF_ACKNOW) {
         strcat(str_array, "TF_ACKNOW | ");
     }
-    if (t_flags & TF_DELACK) {
+    if (flags & TF_DELACK) {
         strcat(str_array, "TF_DELACK | ");
     }
-    if (t_flags & TF_NODELAY) {
+    if (flags & TF_NODELAY) {
         strcat(str_array, "TF_NODELAY | ");
     }
-    if (t_flags & TF_NOOPT) {
+    if (flags & TF_NOOPT) {
         strcat(str_array, "TF_NOOPT | ");
     }
-    if (t_flags & TF_SENTFIN) {
+    if (flags & TF_SENTFIN) {
         strcat(str_array, "TF_SENTFIN | ");
     }
-    if (t_flags & TF_REQ_SCALE) {
+    if (flags & TF_REQ_SCALE) {
         strcat(str_array, "TF_REQ_SCALE | ");
     }
-    if (t_flags & TF_RCVD_SCALE) {
+    if (flags & TF_RCVD_SCALE) {
         strcat(str_array, "TF_RCVD_SCALE | ");
     }
-    if (t_flags & TF_REQ_TSTMP) {
+    if (flags & TF_REQ_TSTMP) {
         strcat(str_array, "TF_REQ_TSTMP | ");
     }
-    if (t_flags & TF_RCVD_TSTMP) {
+    if (flags & TF_RCVD_TSTMP) {
         strcat(str_array, "TF_RCVD_TSTMP | ");
     }
-    if (t_flags & TF_SACK_PERMIT) {
+    if (flags & TF_SACK_PERMIT) {
         strcat(str_array, "TF_SACK_PERMIT | ");
     }
-    if (t_flags & TF_NEEDSYN) {
+    if (flags & TF_NEEDSYN) {
         strcat(str_array, "TF_NEEDSYN | ");
     }
-    if (t_flags & TF_NEEDFIN) {
+    if (flags & TF_NEEDFIN) {
         strcat(str_array, "TF_NEEDFIN | ");
     }
-    if (t_flags & TF_NOPUSH) {
+    if (flags & TF_NOPUSH) {
         strcat(str_array, "TF_NOPUSH | ");
     }
-    if (t_flags & TF_PREVVALID) {
+    if (flags & TF_PREVVALID) {
         strcat(str_array, "TF_PREVVALID | ");
     }
-    if (t_flags & TF_WAKESOR) {
+    if (flags & TF_WAKESOR) {
         strcat(str_array, "TF_WAKESOR | ");
     }
-    if (t_flags & TF_GPUTINPROG) {
+    if (flags & TF_GPUTINPROG) {
         strcat(str_array, "TF_GPUTINPROG | ");
     }
-    if (t_flags & TF_MORETOCOME) {
+    if (flags & TF_MORETOCOME) {
         strcat(str_array, "TF_MORETOCOME | ");
     }
-    if (t_flags & TF_SONOTCONN) {
+    if (flags & TF_SONOTCONN) {
         strcat(str_array, "TF_SONOTCONN | ");
     }
-    if (t_flags & TF_LASTIDLE) {
+    if (flags & TF_LASTIDLE) {
         strcat(str_array, "TF_LASTIDLE | ");
     }
-    if (t_flags & TF_RXWIN0SENT) {
+    if (flags & TF_RXWIN0SENT) {
         strcat(str_array, "TF_RXWIN0SENT | ");
     }
-    if (t_flags & TF_FASTRECOVERY) {
+    if (flags & TF_FASTRECOVERY) {
         strcat(str_array, "TF_FASTRECOVERY | ");
     }
-    if (t_flags & TF_WASFRECOVERY) {
+    if (flags & TF_WASFRECOVERY) {
         strcat(str_array, "TF_WASFRECOVERY | ");
     }
-    if (t_flags & TF_SIGNATURE) {
+    if (flags & TF_SIGNATURE) {
         strcat(str_array, "TF_SIGNATURE | ");
     }
-    if (t_flags & TF_FORCEDATA) {
+    if (flags & TF_FORCEDATA) {
         strcat(str_array, "TF_FORCEDATA | ");
     }
-    if (t_flags & TF_TSO) {
+    if (flags & TF_TSO) {
         strcat(str_array, "TF_TSO | ");
     }
-    if (t_flags & TF_TOE) {
+    if (flags & TF_TOE) {
         strcat(str_array, "TF_TOE | ");
     }
-    if (t_flags & TF_CLOSED) {
+    if (flags & TF_CLOSED) {
         strcat(str_array, "TF_CLOSED | ");
     }
-    if (t_flags & TF_SENTSYN) {
+    if (flags & TF_SENTSYN) {
         strcat(str_array, "TF_SENTSYN | ");
     }
-    if (t_flags & TF_LRD) {
+    if (flags & TF_LRD) {
         strcat(str_array, "TF_LRD | ");
     }
-    if (t_flags & TF_CONGRECOVERY) {
+    if (flags & TF_CONGRECOVERY) {
         strcat(str_array, "TF_CONGRECOVERY | ");
     }
-    if (t_flags & TF_WASCRECOVERY) {
+    if (flags & TF_WASCRECOVERY) {
         strcat(str_array, "TF_WASCRECOVERY | ");
     }
-    if (t_flags & TF_FASTOPEN) {
+    if (flags & TF_FASTOPEN) {
         strcat(str_array, "TF_FASTOPEN | ");
     }
 }
@@ -284,7 +315,7 @@ translate_tflags(uint32_t t_flags, char str_array[], uint32_t arr_size)
  * bytes.
  */
 void
-translate_tflags2(uint32_t t_flags2, char str_array[], uint32_t arr_size)
+translate_tflags2(uint32_t t_flags2, char str_array[], size_t arr_size)
 {
     assert(arr_size >= (23 * sizeof("TF2_PROC_SACK_PROHIBIT")));
 
