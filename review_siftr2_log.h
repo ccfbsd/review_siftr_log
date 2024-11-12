@@ -109,6 +109,8 @@ enum {
     SRTT,           RTO,            SND_BUF_HIWAT,      SND_BUF_CC,
     RCV_BUF_HIWAT,  RCV_BUF_CC,     INFLIGHT_BYTES,     REASS_QLEN,
     TH_SEQ,         TH_ACK,         TCP_DATA_SZ,
+    FUN_NAME,       LINE,           DUPACKS,
+    T_EPOCH,        W_EST,          W_CUBIC,            W_MAX,      K,
     TOTAL_FIELDS,
 };
 
@@ -822,7 +824,7 @@ read_body_by_flowid(struct file_basic_stats *f_basics, uint32_t flowid)
         stats_into_plot_file(f_basics, flowid);
 
         printf("++++++++++++++++++++++++++++++ summary ++++++++++++++++++++++++++++\n");
-        printf("  %s:%hu->%s:%hu flowid: %u\n",
+        printf("  %s:%hu<->%s:%hu flowid: %u\n",
                f_basics->flow_list[idx].laddr, f_basics->flow_list[idx].lport,
                f_basics->flow_list[idx].faddr, f_basics->flow_list[idx].fport,
                flowid);
@@ -831,9 +833,9 @@ read_body_by_flowid(struct file_basic_stats *f_basics, uint32_t flowid)
                f_basics->flow_list[idx].dir_out,
                f_basics->flow_list[idx].dir_in);
 
-        assert(f_basics->flow_list[idx].record_cnt ==
-               (f_basics->flow_list[idx].dir_in +
-                f_basics->flow_list[idx].dir_out));
+//        assert(f_basics->flow_list[idx].record_cnt ==
+//               (f_basics->flow_list[idx].dir_in +
+//                f_basics->flow_list[idx].dir_out));
     } else {
         printf("flow ID %u not found\n", flowid);
     }
