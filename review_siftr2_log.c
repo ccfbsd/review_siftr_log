@@ -23,7 +23,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
     double first_flow_start_time = 0;
     double relative_time_stamp = 0;
 
-    char cwnd_plot_file_name[MAX_NAME_LENGTH];
+    char plot_file_name[MAX_NAME_LENGTH];
 
     int idx;
 
@@ -45,17 +45,17 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
     }
     lineCount++; // Increment line counter, now shall be at the 2nd line
 
-    // Combine the strings into the cwnd_plot_file buffer
-    snprintf(cwnd_plot_file_name, MAX_NAME_LENGTH, "cwnd_%u.txt", flowid);
-    printf("cwnd_plot_file_name: %s\n", cwnd_plot_file_name);
+    // Combine the strings into the plot_file buffer
+    snprintf(plot_file_name, MAX_NAME_LENGTH, "plot_%u.txt", flowid);
+    printf("plot_file_name: %s\n", plot_file_name);
 
-    FILE *cwnd_file = fopen(cwnd_plot_file_name, "w");
-    if (!cwnd_file) {
-        PERROR_FUNCTION("Failed to open cwnd plot file for writing");
+    FILE *plot_file = fopen(plot_file_name, "w");
+    if (!plot_file) {
+        PERROR_FUNCTION("Failed to open plot_file_name for writing");
         return;
     }
 
-    fprintf(cwnd_file,
+    fprintf(plot_file,
             "##DIRECTION" TAB "relative_timestamp" TAB "CWND" TAB
             "SSTHRESH" TAB "data_size" TAB "recovery_flags"
             "\n");
@@ -100,7 +100,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
                     f_basics->flow_list[idx].dir_in++;
                 }
 
-                fprintf(cwnd_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
+                fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
                         "%u" TAB "%u" TAB "%4u" TAB "%s"
                         "\n",
                         fields[DIRECTION], relative_time_stamp, fields[CWND],
@@ -115,8 +115,8 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
         strcpy(previous_line, current_line);
     }
 
-    if (fclose(cwnd_file) == EOF) {
-        PERROR_FUNCTION("Failed to close cwnd_file");
+    if (fclose(plot_file) == EOF) {
+        PERROR_FUNCTION("Failed to close plot_file");
     }
 
     f_basics->num_lines = lineCount;
