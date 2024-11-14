@@ -109,8 +109,10 @@ enum {
     SRTT,           RTO,            SND_BUF_HIWAT,      SND_BUF_CC,
     RCV_BUF_HIWAT,  RCV_BUF_CC,     INFLIGHT_BYTES,     REASS_QLEN,
     TH_SEQ,         TH_ACK,         TCP_DATA_SZ,
+    SND_NXT,        SND_UNA,        PIPE,               SND_CNT,
     FUN_NAME,       LINE,           DUPACKS,
-    T_EPOCH,        W_EST,          W_CUBIC,            W_MAX,      K,
+    DELIVERED_DATA,        SACK_BYTES_REXMIT,          SACKED_BYTES,
+    LOST_BYTES,      RECOVER_FS,
     TOTAL_FIELDS,
 };
 
@@ -166,20 +168,20 @@ struct file_basic_stats {
 
 /* Flags for the tp->t_flags field. */
 enum {
-    TF_ACKNOW = 0x00000001, TF_DELACK = 0x00000002, TF_NODELAY = 0x00000004,
-    TF_NOOPT = 0x00000008,  TF_SENTFIN = 0x00000010, TF_REQ_SCALE = 0x00000020,
-    TF_RCVD_SCALE = 0x00000040, TF_REQ_TSTMP = 0x00000080,
-    TF_RCVD_TSTMP = 0x00000100, TF_SACK_PERMIT = 0x00000200,
-    TF_NEEDSYN = 0x00000400, TF_NEEDFIN = 0x00000800, TF_NOPUSH = 0x00001000,
-    TF_PREVVALID = 0x00002000, TF_WAKESOR = 0x00004000,
-    TF_GPUTINPROG = 0x00008000, TF_MORETOCOME = 0x00010000,
-    TF_SONOTCONN = 0x00020000, TF_LASTIDLE = 0x00040000,
-    TF_RXWIN0SENT = 0x00080000, TF_FASTRECOVERY = 0x00100000,
-    TF_WASFRECOVERY = 0x00200000, TF_SIGNATURE = 0x00400000,
-    TF_FORCEDATA = 0x00800000, TF_TSO = 0x01000000, TF_TOE = 0x02000000,
-    TF_CLOSED = 0x04000000, TF_SENTSYN = 0x08000000, TF_LRD = 0x10000000,
-    TF_CONGRECOVERY = 0x20000000, TF_WASCRECOVERY = 0x40000000,
-    TF_FASTOPEN = 0x80000000,
+    ACKNOW = 0x00000001, DELACK = 0x00000002, NODELAY = 0x00000004,
+    NOOPT = 0x00000008,  SENTFIN = 0x00000010, REQ_SCALE = 0x00000020,
+    RCVD_SCALE = 0x00000040, REQ_TSTMP = 0x00000080,
+    RCVD_TSTMP = 0x00000100, SACK_PERMIT = 0x00000200,
+    NEEDSYN = 0x00000400, NEEDFIN = 0x00000800, NOPUSH = 0x00001000,
+    PREVVALID = 0x00002000, WAKESOR = 0x00004000,
+    GPUTINPROG = 0x00008000, MORETOCOME = 0x00010000,
+    SONOTCONN = 0x00020000, LASTIDLE = 0x00040000,
+    RXWIN0SENT = 0x00080000, FASTRECOVERY = 0x00100000,
+    WASFRECOVERY = 0x00200000, SIGNATURE = 0x00400000,
+    FORCEDATA = 0x00800000, TSO = 0x01000000, TOE = 0x02000000,
+    CLOSED = 0x04000000, SENTSYN = 0x08000000, LRD = 0x10000000,
+    CONGRECOVERY = 0x20000000, WASCRECOVERY = 0x40000000,
+    FASTOPEN = 0x80000000,
 };
 
 /* Flags for the extended TCP flags field, tp->t_flags2 */
@@ -198,122 +200,122 @@ enum {
     TF2_NO_ISS_CHECK = 0x00400000,
 };
 
-#define IN_FASTRECOVERY(t_flags)    (t_flags & TF_FASTRECOVERY)
-#define IN_CONGRECOVERY(t_flags)    (t_flags & TF_CONGRECOVERY)
-#define IN_RECOVERY(t_flags) (t_flags & (TF_CONGRECOVERY | TF_FASTRECOVERY))
-#define WAS_RECOVERY(t_flags) (t_flags & (TF_WASFRECOVERY | TF_WASCRECOVERY))
+#define IN_FASTRECOVERY(t_flags)    (t_flags & FASTRECOVERY)
+#define IN_CONGRECOVERY(t_flags)    (t_flags & CONGRECOVERY)
+#define IN_RECOVERY(t_flags) (t_flags & (CONGRECOVERY | FASTRECOVERY))
+#define WAS_RECOVERY(t_flags) (t_flags & (WASFRECOVERY | WASCRECOVERY))
 
 extern bool verbose;
 void stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid);
 
 /* There are 32 flag values for t_flags. So assume the caller has provided a
- * large enough array to hold 32 x sizeof("TF_CONGRECOVERY |") == 544 bytes.
+ * large enough array to hold 32 x sizeof("CONGRECOVERY |") == 544 bytes.
  */
 void
 translate_tflags(uint32_t flags, char str_array[], size_t arr_size)
 {
-    assert(arr_size >= (32 * sizeof("TF_CONGRECOVERY")));
+    assert(arr_size >= (32 * sizeof("CONGRECOVERY")));
 
     if (flags == 0) {
         strcat(str_array, "N/A");
         return;
     }
 
-    if (flags & TF_ACKNOW) {
-        strcat(str_array, "TF_ACKNOW | ");
+    if (flags & ACKNOW) {
+        strcat(str_array, "ACKNOW | ");
     }
-    if (flags & TF_DELACK) {
-        strcat(str_array, "TF_DELACK | ");
+    if (flags & DELACK) {
+        strcat(str_array, "DELACK | ");
     }
-    if (flags & TF_NODELAY) {
-        strcat(str_array, "TF_NODELAY | ");
+    if (flags & NODELAY) {
+        strcat(str_array, "NODELAY | ");
     }
-    if (flags & TF_NOOPT) {
-        strcat(str_array, "TF_NOOPT | ");
+    if (flags & NOOPT) {
+        strcat(str_array, "NOOPT | ");
     }
-    if (flags & TF_SENTFIN) {
-        strcat(str_array, "TF_SENTFIN | ");
+    if (flags & SENTFIN) {
+        strcat(str_array, "SENTFIN | ");
     }
-    if (flags & TF_REQ_SCALE) {
-        strcat(str_array, "TF_REQ_SCALE | ");
+    if (flags & REQ_SCALE) {
+        strcat(str_array, "REQ_SCALE | ");
     }
-    if (flags & TF_RCVD_SCALE) {
-        strcat(str_array, "TF_RCVD_SCALE | ");
+    if (flags & RCVD_SCALE) {
+        strcat(str_array, "RCVD_SCALE | ");
     }
-    if (flags & TF_REQ_TSTMP) {
-        strcat(str_array, "TF_REQ_TSTMP | ");
+    if (flags & REQ_TSTMP) {
+        strcat(str_array, "REQ_TSTMP | ");
     }
-    if (flags & TF_RCVD_TSTMP) {
-        strcat(str_array, "TF_RCVD_TSTMP | ");
+    if (flags & RCVD_TSTMP) {
+        strcat(str_array, "RCVD_TSTMP | ");
     }
-    if (flags & TF_SACK_PERMIT) {
-        strcat(str_array, "TF_SACK_PERMIT | ");
+    if (flags & SACK_PERMIT) {
+        strcat(str_array, "SACK_PERMIT | ");
     }
-    if (flags & TF_NEEDSYN) {
-        strcat(str_array, "TF_NEEDSYN | ");
+    if (flags & NEEDSYN) {
+        strcat(str_array, "NEEDSYN | ");
     }
-    if (flags & TF_NEEDFIN) {
-        strcat(str_array, "TF_NEEDFIN | ");
+    if (flags & NEEDFIN) {
+        strcat(str_array, "NEEDFIN | ");
     }
-    if (flags & TF_NOPUSH) {
-        strcat(str_array, "TF_NOPUSH | ");
+    if (flags & NOPUSH) {
+        strcat(str_array, "NOPUSH | ");
     }
-    if (flags & TF_PREVVALID) {
-        strcat(str_array, "TF_PREVVALID | ");
+    if (flags & PREVVALID) {
+        strcat(str_array, "PREVVALID | ");
     }
-    if (flags & TF_WAKESOR) {
-        strcat(str_array, "TF_WAKESOR | ");
+    if (flags & WAKESOR) {
+        strcat(str_array, "WAKESOR | ");
     }
-    if (flags & TF_GPUTINPROG) {
-        strcat(str_array, "TF_GPUTINPROG | ");
+    if (flags & GPUTINPROG) {
+        strcat(str_array, "GPUTINPROG | ");
     }
-    if (flags & TF_MORETOCOME) {
-        strcat(str_array, "TF_MORETOCOME | ");
+    if (flags & MORETOCOME) {
+        strcat(str_array, "MORETOCOME | ");
     }
-    if (flags & TF_SONOTCONN) {
-        strcat(str_array, "TF_SONOTCONN | ");
+    if (flags & SONOTCONN) {
+        strcat(str_array, "SONOTCONN | ");
     }
-    if (flags & TF_LASTIDLE) {
-        strcat(str_array, "TF_LASTIDLE | ");
+    if (flags & LASTIDLE) {
+        strcat(str_array, "LASTIDLE | ");
     }
-    if (flags & TF_RXWIN0SENT) {
-        strcat(str_array, "TF_RXWIN0SENT | ");
+    if (flags & RXWIN0SENT) {
+        strcat(str_array, "RXWIN0SENT | ");
     }
-    if (flags & TF_FASTRECOVERY) {
-        strcat(str_array, "TF_FASTRECOVERY | ");
+    if (flags & FASTRECOVERY) {
+        strcat(str_array, "FASTRECOVERY | ");
     }
-    if (flags & TF_WASFRECOVERY) {
-        strcat(str_array, "TF_WASFRECOVERY | ");
+    if (flags & WASFRECOVERY) {
+        strcat(str_array, "WASFRECOVERY | ");
     }
-    if (flags & TF_SIGNATURE) {
-        strcat(str_array, "TF_SIGNATURE | ");
+    if (flags & SIGNATURE) {
+        strcat(str_array, "SIGNATURE | ");
     }
-    if (flags & TF_FORCEDATA) {
-        strcat(str_array, "TF_FORCEDATA | ");
+    if (flags & FORCEDATA) {
+        strcat(str_array, "FORCEDATA | ");
     }
-    if (flags & TF_TSO) {
-        strcat(str_array, "TF_TSO | ");
+    if (flags & TSO) {
+        strcat(str_array, "TSO | ");
     }
-    if (flags & TF_TOE) {
-        strcat(str_array, "TF_TOE | ");
+    if (flags & TOE) {
+        strcat(str_array, "TOE | ");
     }
-    if (flags & TF_CLOSED) {
-        strcat(str_array, "TF_CLOSED | ");
+    if (flags & CLOSED) {
+        strcat(str_array, "CLOSED | ");
     }
-    if (flags & TF_SENTSYN) {
-        strcat(str_array, "TF_SENTSYN | ");
+    if (flags & SENTSYN) {
+        strcat(str_array, "SENTSYN | ");
     }
-    if (flags & TF_LRD) {
-        strcat(str_array, "TF_LRD | ");
+    if (flags & LRD) {
+        strcat(str_array, "LRD | ");
     }
-    if (flags & TF_CONGRECOVERY) {
-        strcat(str_array, "TF_CONGRECOVERY | ");
+    if (flags & CONGRECOVERY) {
+        strcat(str_array, "CONGRECOVERY | ");
     }
-    if (flags & TF_WASCRECOVERY) {
-        strcat(str_array, "TF_WASCRECOVERY | ");
+    if (flags & WASCRECOVERY) {
+        strcat(str_array, "WASCRECOVERY | ");
     }
-    if (flags & TF_FASTOPEN) {
-        strcat(str_array, "TF_FASTOPEN | ");
+    if (flags & FASTOPEN) {
+        strcat(str_array, "FASTOPEN | ");
     }
 }
 

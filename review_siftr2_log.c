@@ -23,6 +23,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
     double first_flow_start_time = 0;
     double relative_time_stamp = 0;
     uint32_t max_data_sz = 0;
+    uint32_t last_recovery_flags = 0;
 
     char plot_file_name[MAX_NAME_LENGTH];
 
@@ -58,9 +59,9 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
 
     fprintf(plot_file,
             "##DIRECTION" TAB "relative_timestamp" TAB "CWND" TAB
-            "SSTHRESH" TAB "fun_name" TAB "line" TAB "dupacks" TAB
-//            "th_seq" TAB "th_ack" TAB "data_size" TAB
-//            "t_epoch" TAB "W_est" TAB "W_cubic" TAB "W_max" TAB "K" TAB
+            "SSTHRESH" TAB "snd_nxt" TAB "snd_una" TAB "pipe" TAB  "snd_cnt" TAB
+            "fun_name" TAB "line" TAB "dupacks" TAB
+            "INFLIGHT_BYTES" TAB "SACK_BYTES_REXMIT" TAB "SACKED_BYTES" TAB "LOST_BYTES" TAB "RECOVER_FS" TAB
             "recovery_flags(IN_RECOVERY(t_flags) | WAS_RECOVERY(t_flags))"
             "\n");
 
@@ -112,19 +113,24 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
                     f_basics->flow_list[idx].dir_in++;
                 }
 
-                fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
-//                        "%u" TAB "%u" TAB "%4u" TAB
-                        "%s" TAB "%s" TAB "%s" TAB
-//                        "%s" TAB "%s" TAB "%s" TAB "%s" TAB "%s" TAB
+                fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB //ssthresh
+                        "%s" TAB "%s" TAB "%8s" TAB "%8s" TAB
+                        "%21s" TAB "%4s" TAB "%3s" TAB  //dupacks
+                        "%8s" TAB "%8s" TAB           //SACK_BYTES_REXMIT
+                        "%8s" TAB "%8s" TAB "%8s" TAB  //RECOVER_FS
                         "%s\n",
                         fields[DIRECTION], relative_time_stamp, fields[CWND],
                         fields[SSTHRESH],
-//                        fields[SRTT],
-//                        local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz,
+                        fields[SND_NXT], fields[SND_UNA], fields[PIPE], fields[SND_CNT],
                         fields[FUN_NAME], fields[LINE], fields[DUPACKS],
-//                        fields[T_EPOCH], fields[W_EST], fields[W_CUBIC],
-//                        fields[W_MAX], fields[K],
+                        fields[INFLIGHT_BYTES], fields[SACK_BYTES_REXMIT],
+                        fields[SACKED_BYTES], fields[LOST_BYTES], fields[RECOVER_FS],
                         recovery_flags_arr);
+
+                if (recovery_flags == 0 && last_recovery_flags != 0) {
+                    break;
+                }
+                last_recovery_flags = recovery_flags;
             }
         }
 
