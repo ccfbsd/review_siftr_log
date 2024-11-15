@@ -25,6 +25,8 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
 
     char plot_file_name[MAX_NAME_LENGTH];
 
+    uint32_t fragment_cnt = 0;
+
     int idx;
 
     if (!is_flowid_in_file(f_basics, flowid, &idx)) {
@@ -99,14 +101,25 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
                 } else {
                     f_basics->flow_list[idx].dir_in++;
                 }
-
-                fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
-                        "%u" TAB "%u" TAB "%4u" TAB "%s"
-                        "\n",
-                        fields[DIRECTION], relative_time_stamp, fields[CWND],
-                        fields[SSTHRESH],
-                        local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz,
-                        recovery_flags_arr);
+                if (local_pkt.data_sz != f_basics->flow_list[idx].mss &&
+                    local_pkt.data_sz > 0) {
+                    fragment_cnt++;
+                    fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
+                            "%u" TAB "%u" TAB "%4u" TAB "%s <<<"
+                            "\n",
+                            fields[DIRECTION], relative_time_stamp, fields[CWND],
+                            fields[SSTHRESH],
+                            local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz,
+                            recovery_flags_arr);
+                } else {
+                    fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
+                            "%u" TAB "%u" TAB "%4u" TAB "%s"
+                            "\n",
+                            fields[DIRECTION], relative_time_stamp, fields[CWND],
+                            fields[SSTHRESH],
+                            local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz,
+                            recovery_flags_arr);
+                }
             }
         }
 
@@ -121,7 +134,8 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
 
     f_basics->num_lines = lineCount;
 
-    printf("input file has total lines: %u\n", lineCount);
+    printf("input file has total lines: %u, fragment_cnt == %u\n",
+           lineCount, fragment_cnt);
 }
 
 int main(int argc, char *argv[]) {
