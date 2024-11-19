@@ -202,7 +202,8 @@ enum {
 #define WAS_RECOVERY(t_flags) (t_flags & (TF_WASFRECOVERY | TF_WASCRECOVERY))
 
 extern bool verbose;
-void stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid);
+void stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
+                          char plot_file_name[]);
 
 /* There are 32 flag values for t_flags. So assume the caller has provided a
  * large enough array to hold 32 x sizeof("TF_CONGRECOVERY |") == 544 bytes.
@@ -819,13 +820,18 @@ read_body_by_flowid(struct file_basic_stats *f_basics, uint32_t flowid)
     int idx;
 
     if (is_flowid_in_file(f_basics, flowid, &idx)) {
-        stats_into_plot_file(f_basics, flowid);
+        char plot_file_name[MAX_NAME_LENGTH];
+        // Combine the strings into the plot_file buffer
+        snprintf(plot_file_name, MAX_NAME_LENGTH, "plot_%u.txt", flowid);
+        printf("plot_file_name: %s\n", plot_file_name);
 
         printf("++++++++++++++++++++++++++++++ summary ++++++++++++++++++++++++++++\n");
         printf("  %s:%hu->%s:%hu flowid: %u\n",
                f_basics->flow_list[idx].laddr, f_basics->flow_list[idx].lport,
                f_basics->flow_list[idx].faddr, f_basics->flow_list[idx].fport,
                flowid);
+        stats_into_plot_file(f_basics, flowid, plot_file_name);
+
         printf("    has %u useful records (%u outputs, %u inputs)\n",
                f_basics->flow_list[idx].record_cnt,
                f_basics->flow_list[idx].dir_out,
