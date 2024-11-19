@@ -14,7 +14,8 @@
 bool verbose = false;
 
 void
-stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
+stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
+                     char plot_file_name[])
 {
     uint32_t lineCount = 0;
     char current_line[MAX_LINE_LENGTH];
@@ -23,8 +24,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
     double first_flow_start_time = 0;
     double relative_time_stamp = 0;
 
-    char plot_file_name[MAX_NAME_LENGTH];
-
+    uint32_t data_pkt_cnt = 0;
     uint32_t fragment_cnt = 0;
 
     int idx;
@@ -46,10 +46,6 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
         return;
     }
     lineCount++; // Increment line counter, now shall be at the 2nd line
-
-    // Combine the strings into the plot_file buffer
-    snprintf(plot_file_name, MAX_NAME_LENGTH, "plot_%u.txt", flowid);
-    printf("plot_file_name: %s\n", plot_file_name);
 
     FILE *plot_file = fopen(plot_file_name, "w");
     if (!plot_file) {
@@ -102,6 +98,9 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
                     f_basics->flow_list[idx].dir_in++;
                 }
 
+                if (local_pkt.data_sz > 0) {
+                    data_pkt_cnt++;
+                }
                 if ((local_pkt.data_sz % f_basics->flow_list[idx].mss) > 0) {
                     fragment_cnt++;
                 }
@@ -126,8 +125,10 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
 
     f_basics->num_lines = lineCount;
 
-    printf("input file has total lines: %u, fragment_cnt == %u\n",
-           lineCount, fragment_cnt);
+    printf("input file has total lines: %u\n"
+           "input flow data_pkt_cnt: %u, fragment_cnt: %u, fragment_ratio: %.3f\n",
+           lineCount, data_pkt_cnt, fragment_cnt,
+           (double)fragment_cnt / data_pkt_cnt);
 }
 
 int main(int argc, char *argv[]) {
