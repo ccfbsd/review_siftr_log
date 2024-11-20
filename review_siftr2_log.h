@@ -121,7 +121,7 @@ struct pkt_info {
     uint32_t    data_sz;    /* the length of TCP segment payload in bytes */
 };
 
-inline void
+static inline void
 fill_pkt_info(struct pkt_info *pkt, uint32_t flowid, tcp_seq th_seq,
               tcp_seq th_ack, uint32_t data_sz)
 {
@@ -131,7 +131,7 @@ fill_pkt_info(struct pkt_info *pkt, uint32_t flowid, tcp_seq th_seq,
     pkt->data_sz = data_sz;
 }
 
-inline void
+static inline void
 print_pkt_info(struct pkt_info *pkt)
 {
     printf(" id:%10u th_seq:%u th_ack:%u data_sz:%u\n",
@@ -470,7 +470,7 @@ timeval_subtract(struct timeval *result, const struct timeval *t1,
     }
 }
 
-inline bool
+static inline bool
 is_timeval_set(const struct timeval *val)
 {
     return (val->tv_sec != 0 || val->tv_usec != 0);
