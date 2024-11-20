@@ -72,25 +72,12 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
             }
 
             if (my_atol(fields[FLOW_ID]) == flowid) {
-                char t_flags_arr[TF_ARRAY_MAX_LENGTH] = {0};
-                char t_flags2_arr[TF2_ARRAY_MAX_LENGTH] = {0};
-                uint32_t t_flags = (uint32_t)my_atol(fields[FLAG]);
-                uint32_t t_flags2 = (uint32_t)my_atol(fields[FLAG2]);
-
-                char recovery_flags_arr[TF_ARRAY_MAX_LENGTH] = {0};
-                uint32_t recovery_flags = IN_RECOVERY(t_flags) | WAS_RECOVERY(t_flags);
-
                 tcp_seq th_seq = (uint32_t)my_atol(fields[TH_SEQ]);
                 tcp_seq th_ack = (uint32_t)my_atol(fields[TH_ACK]);
                 uint32_t data_sz = (uint32_t)my_atol(fields[TCP_DATA_SZ]);
 
                 struct pkt_info local_pkt = {0};
                 fill_pkt_info(&local_pkt, flowid, th_seq, th_ack, data_sz);
-
-                translate_tflags(t_flags, t_flags_arr, sizeof(t_flags_arr));
-                translate_tflags2(t_flags2, t_flags2_arr, sizeof(t_flags2_arr));
-                translate_tflags(recovery_flags, recovery_flags_arr,
-                                 sizeof(recovery_flags_arr));
 
                 if (strcmp(fields[DIRECTION], "o") == 0) {
                     f_basics->flow_list[idx].dir_out++;
@@ -105,12 +92,11 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
                     fragment_cnt++;
                 }
                 fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
-                        "%u" TAB "%u" TAB "%4u" TAB "%s"
+                        "%u" TAB "%u" TAB "%4u"
                         "\n",
                         fields[DIRECTION], relative_time_stamp, fields[CWND],
                         fields[SSTHRESH],
-                        local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz,
-                        recovery_flags_arr);
+                        local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz);
             }
         }
 
