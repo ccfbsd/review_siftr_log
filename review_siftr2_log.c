@@ -54,8 +54,8 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
     }
 
     fprintf(plot_file,
-            "##DIRECTION" TAB "relative_timestamp" TAB "CWND" TAB
-            "SSTHRESH" TAB "data_size" TAB "recovery_flags"
+            "##direction" TAB "relative_timestamp" TAB "cwnd" TAB
+            "ssthresh" TAB "th_seq" TAB "th_ack" TAB "data_size"
             "\n");
 
     while (fgets(current_line, MAX_LINE_LENGTH, f_basics->file) != NULL) {
@@ -72,12 +72,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
             }
 
             if (my_atol(fields[FLOW_ID]) == flowid) {
-                tcp_seq th_seq = (uint32_t)my_atol(fields[TH_SEQ]);
-                tcp_seq th_ack = (uint32_t)my_atol(fields[TH_ACK]);
                 uint32_t data_sz = (uint32_t)my_atol(fields[TCP_DATA_SZ]);
-
-                struct pkt_info local_pkt = {0};
-                fill_pkt_info(&local_pkt, flowid, th_seq, th_ack, data_sz);
 
                 if (strcmp(fields[DIRECTION], "o") == 0) {
                     f_basics->flow_list[idx].dir_out++;
@@ -85,18 +80,17 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
                     f_basics->flow_list[idx].dir_in++;
                 }
 
-                if (local_pkt.data_sz > 0) {
+                if (data_sz > 0) {
                     data_pkt_cnt++;
                 }
-                if ((local_pkt.data_sz % f_basics->flow_list[idx].mss) > 0) {
+                if ((data_sz % f_basics->flow_list[idx].mss) > 0) {
                     fragment_cnt++;
                 }
-                fprintf(plot_file, "%s" TAB "%.6f" TAB "%s" TAB "%s" TAB
-                        "%u" TAB "%u" TAB "%4u"
+                fprintf(plot_file, "%s" TAB "%.6f" TAB "%8s" TAB
+                        "%10s" TAB "%10s" TAB "%10s" TAB "%4u"
                         "\n",
                         fields[DIRECTION], relative_time_stamp, fields[CWND],
-                        fields[SSTHRESH],
-                        local_pkt.th_seq, local_pkt.th_ack, local_pkt.data_sz);
+                        fields[SSTHRESH], fields[TH_SEQ], fields[TH_ACK], data_sz);
             }
         }
 
