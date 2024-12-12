@@ -487,7 +487,7 @@ fill_fields_from_line(char **fields, char *line)
 bool
 is_flowid_in_file(const struct file_basic_stats *f_basics, uint32_t flowid, int *idx)
 {
-    for (int i = 0; i < f_basics->flow_count; i++) {
+    for (uint32_t i = 0; i < f_basics->flow_count; i++) {
         if (f_basics->flow_list[i].flowid == flowid) {
             *idx = i;
             return true;
@@ -710,7 +710,7 @@ get_body_stats(struct file_basic_stats *f_basics) {
             if (!is_flowid_in_file(f_basics, flowid, &idx)) {
                 struct flow_info target_flow = { .flowid = flowid };
 
-                for (int i = 0; i < f_basics->flow_count; i++) {
+                for (uint32_t i = 0; i < f_basics->flow_count; i++) {
                     if (f_basics->flow_list[i].flowid == 0) {
                         fill_flow_info(&target_flow, fields);
                         target_flow.record_cnt = 1;
@@ -787,7 +787,7 @@ show_file_basic_stats(const struct file_basic_stats *f_basics)
     }
 
     printf("flow id list:\n");
-    for (int i = 0; i < f_basics->flow_count; i++) {
+    for (uint32_t i = 0; i < f_basics->flow_count; i++) {
         printf(" flowid:%10u (%s:%hu<->%s:%hu) records:%u\n",
                 f_basics->flow_list[i].flowid,
                 f_basics->flow_list[i].laddr, f_basics->flow_list[i].lport,
