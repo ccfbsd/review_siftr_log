@@ -22,7 +22,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-typedef u_int32_t tcp_seq;
+typedef uint32_t tcp_seq;
 
 enum {
     INP_IPV4 = 0x1,		// siftr2 is IPv4 only
@@ -552,7 +552,7 @@ fill_fields_from_line(char **fields, char *line, enum line_type type)
 bool
 is_flowid_in_file(const struct file_basic_stats *f_basics, uint32_t flowid, int *idx)
 {
-    for (int i = 0; i < f_basics->flow_count; i++) {
+    for (uint32_t i = 0; i < f_basics->flow_count; i++) {
         if (f_basics->flow_list[i].flowid == flowid) {
             *idx = i;
             return true;
@@ -739,7 +739,7 @@ get_flow_count_and_info(struct file_basic_stats *f_basics)
 
     assert(flow_cnt == f_basics->last_line_stats->global_flow_cnt);
 
-    for (int i = 0; i < flow_cnt; i++) {
+    for (uint32_t i = 0; i < flow_cnt; i++) {
         char *fields[TOTAL_FLOWLIST_FIELDS];
         struct flow_info target_flow;
 
@@ -797,7 +797,7 @@ show_file_basic_stats(const struct file_basic_stats *f_basics)
     }
 
     printf("flow id list:\n");
-    for (int i = 0; i < f_basics->flow_count; i++) {
+    for (uint32_t i = 0; i < f_basics->flow_count; i++) {
         print_flow_info(&f_basics->flow_list[i]);
     }
     printf("\n");
