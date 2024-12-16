@@ -455,7 +455,7 @@ read_last_line(FILE *file, char *lastLine)
         }
     }
     /* If file has only one line, handle that case */
-    fseek(file, 0, SEEK_SET);
+    rewind(file);
     if (fgets(lastLine, MAX_LINE_LENGTH, file) != NULL) {
         return EXIT_SUCCESS;
     } else {
