@@ -22,7 +22,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
     uint32_t current_line;
 
     /* Restart seeking and go back to the beginning of the file */
-    fseek(f_basics->file, 0, SEEK_SET);
+    rewind(f_basics->file);
 
     current_line = 1; // Line counter (start from 1 for 1-based index)
 
