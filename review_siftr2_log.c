@@ -38,7 +38,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
            (0 == f_basics->flow_list[idx].dir_out));
 
     /* Restart seeking and go back to the beginning of the file */
-    fseek(f_basics->file, 0, SEEK_SET);
+    rewind(f_basics->file);
 
     /* Read and discard the first line */
     if(fgets(current_line, MAX_LINE_LENGTH, f_basics->file) == NULL) {
