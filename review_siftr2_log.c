@@ -17,9 +17,10 @@ void
 stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
                      char plot_file_name[])
 {
-    uint32_t lineCount = 0;
-    char current_line[MAX_LINE_LENGTH];
-    char previous_line[MAX_LINE_LENGTH] = {};
+    uint32_t line_cnt = 0;
+    uint32_t max_line_len = f_basics->last_line_stats->line_len;
+    char current_line[max_line_len];
+    char previous_line[max_line_len];
 
     double first_flow_start_time = 0;
     double relative_time_stamp = 0;
@@ -37,6 +38,8 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
     assert((0 == f_basics->flow_list[idx].dir_in) &&
            (0 == f_basics->flow_list[idx].dir_out));
 
+    memset(previous_line, 0, max_line_len);
+
     /* Restart seeking and go back to the beginning of the file */
     rewind(f_basics->file);
 
@@ -45,7 +48,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
         PERROR_FUNCTION("Failed to read first line");
         return;
     }
-    lineCount++; // Increment line counter, now shall be at the 2nd line
+    line_cnt++; // Increment line counter, now shall be at the 2nd line
 
     FILE *plot_file = fopen(plot_file_name, "w");
     if (!plot_file) {
@@ -94,7 +97,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
             }
         }
 
-        lineCount++;
+        line_cnt++;
         /* Update the previous line to be the current line. */
         strcpy(previous_line, current_line);
     }
@@ -103,11 +106,11 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
         PERROR_FUNCTION("Failed to close plot_file");
     }
 
-    f_basics->num_lines = lineCount;
+    f_basics->num_lines = line_cnt;
 
     printf("input file has total lines: %u\n"
            "input flow data_pkt_cnt: %u, fragment_cnt: %u, fragment_ratio: %.3f\n",
-           lineCount, data_pkt_cnt, fragment_cnt,
+           line_cnt, data_pkt_cnt, fragment_cnt,
            (double)fragment_cnt / data_pkt_cnt);
 }
 
