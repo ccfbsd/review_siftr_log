@@ -19,7 +19,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
 {
     uint32_t lineCount = 0;
     char current_line[MAX_LINE_LENGTH];
-    char previous_line[MAX_LINE_LENGTH] = {0};
+    char previous_line[MAX_LINE_LENGTH] = {};
 
     double first_flow_start_time = 0;
     double relative_time_stamp = 0;
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
     struct timeval start, end;
     gettimeofday(&start, NULL);
 
-    struct file_basic_stats f_basics = {0};
+    struct file_basic_stats f_basics = {};
 
     int opt;
     int opt_idx = 0;
