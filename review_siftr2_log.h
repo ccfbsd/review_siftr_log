@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -157,6 +158,8 @@ struct file_basic_stats {
     FILE        *file;
     uint32_t    num_lines;
     uint32_t    flow_count;
+    struct stat st;
+    int         fd;
     struct flow_info *flow_list;
     struct first_line_fields *first_line_stats;
     struct last_line_fields *last_line_stats;
@@ -524,6 +527,28 @@ read_last_line(FILE *file, char *lastLine)
     }
 }
 
+static inline void
+get_fd_and_fstat(struct file_basic_stats *f_basics)
+{
+    struct stat *st = &f_basics->st;
+    /* Get the file descriptor */
+    int fd = fileno(f_basics->file);
+    if (fd == -1) {
+        PERROR_FUNCTION("Error getting file descriptor");
+        return;
+    }
+    /* Get the file size */
+    if (fstat(fd, st) < 0) {
+        PERROR_FUNCTION("Error getting file size");
+        return;
+    }
+    if (st->st_size == 0) {
+        PERROR_FUNCTION("File is empty.\n");
+        return;
+    }
+    f_basics->fd = fd;
+}
+
 void
 fill_fields_from_line(char **fields, char *line, enum line_type type)
 {
@@ -761,6 +786,8 @@ get_file_basics(struct file_basic_stats *f_basics, const char *file_name)
         return EXIT_FAILURE;
     }
     f_basics->file = file;
+
+    get_fd_and_fstat(f_basics);
 
     get_first_line_stats(f_basics);
     if (f_basics->first_line_stats == NULL) {
