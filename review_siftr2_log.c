@@ -44,7 +44,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
     rewind(f_basics->file);
 
     /* Read and discard the first line */
-    if(fgets(current_line, MAX_LINE_LENGTH, f_basics->file) == NULL) {
+    if(fgets(current_line, max_line_len, f_basics->file) == NULL) {
         PERROR_FUNCTION("Failed to read first line");
         return;
     }
@@ -61,7 +61,7 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid,
             "ssthresh" TAB "th_seq" TAB "th_ack" TAB "data_size"
             "\n");
 
-    while (fgets(current_line, MAX_LINE_LENGTH, f_basics->file) != NULL) {
+    while (fgets(current_line, max_line_len, f_basics->file) != NULL) {
         if (previous_line[0] != '\0') {
             char *fields[TOTAL_FIELDS];
 
