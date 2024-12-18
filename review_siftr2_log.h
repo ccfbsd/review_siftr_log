@@ -91,6 +91,7 @@ struct last_line_fields {
     uint32_t    avg_tmp_qsize;
     uint32_t    max_str_size;
     uint32_t    alq_getn_fail_cnt;
+    uint32_t    line_len;
     char        *flow_list_str;
     struct timeval disable_time;
 };
@@ -639,6 +640,8 @@ get_last_line_stats(struct file_basic_stats *f_basics)
         if (l_line_stats == NULL) {
             PERROR_FUNCTION("malloc failed for l_line_stats");
         }
+
+        l_line_stats->line_len = strlen(lastLine) + 1;
 
         /* Strip newline characters at the end */
         lastLine[strcspn(lastLine, "\r\n")] = '\0';
