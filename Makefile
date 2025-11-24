@@ -2,22 +2,23 @@
 UNAME := $(shell uname)
 
 # Default compiler settings
-CC = gcc
-
-# Change compiler based on OS
-ifeq ($(UNAME), Darwin)
-    CC = clang
-endif
+CC = clang
 
 # compiler flags:
-#  -std=c2x	comply with C23
+#  -std=c23	comply with C23
 #  -O3		optimize level at 3
 #  -g		adds debugging information to the executable file
 #  -Wall	turns on most, but not all, compiler warnings
 #  -Wextra	additional warnings not covered by -Wall
-CFLAGS = -std=c2x -O3 -Wall -Wextra -I.
-RM = rm -f
+CFLAGS = -std=c23 -O3 -Wall -Wextra -I.
 
+# Change compiler based on OS
+ifeq ($(UNAME), Linux)
+    CC = gcc
+    CFLAGS = -std=c2x -O3 -Wall -Wextra -I.
+endif
+
+RM = rm -f
 
 # the build target executable:
 TARGET = review_siftr_log
