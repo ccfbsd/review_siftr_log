@@ -43,8 +43,8 @@ stats_into_plot_file(struct file_basic_stats *f_basics, uint32_t flowid)
         return;
     }
 
-    fprintf(cwnd_file, "##DIRECTION" TAB "relative_timestamp" TAB "CWND" TAB
-            "SSTHRESH\n");
+    fprintf(cwnd_file, "##direction" TAB "relative_timestamp" TAB "cwnd" TAB
+            "ssthresh\n");
 
     while ((fgets(line, MAX_LINE_LENGTH, f_basics->file) != NULL) &&
            (current_line != f_basics->num_lines)) {
